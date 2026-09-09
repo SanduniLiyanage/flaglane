@@ -10,7 +10,8 @@ serves them to client applications through SDKs, and provides a dashboard for ch
 runtime.
 
 Out of scope for v0.x: experimentation statistics, multivariate flags, RBAC, SSO, approval
-workflows, scheduled changes, SDKs other than TypeScript.
+workflows, scheduled changes, SDKs other than TypeScript, regular-expression targeting operators
+(E-009), revocable sessions (E-028), and running more than one API instance (ADR-013).
 
 ## 2. Actors
 
@@ -211,6 +212,10 @@ here is a place they will disagree, silently and in production (E-011).
 - **FR-STR-002** The stream sends a heartbeat comment at least every 30 seconds so proxies do not
   close idle connections.
 - **FR-STR-003** Revoking a key closes its open streams.
+- **FR-STR-004** Streams are served with `SseEmitter`, which releases the request thread; a
+  blocking implementation would cap concurrency at the servlet thread pool. At most 500 concurrent
+  streams per key and 1,000 per environment, both configurable; further connections are refused
+  with 429 and `Retry-After`. A limit with no number is not a limit.
 
 ### 4.7 SDK
 
@@ -260,7 +265,9 @@ here is a place they will disagree, silently and in production (E-011).
   the flag under evaluation. A one-millisecond budget is unfailable — a hash and a map lookup
   cannot approach it — and a measurement that cannot fail is not evidence.
 - **NFR-PER-002** `GET /sdk/config`: p99 under 50 ms served from cache, measured locally.
-- **NFR-PER-003** A dashboard change reaches connected SDKs in under 1 second at p95.
+- **NFR-PER-003** A dashboard change reaches connected SDKs in under 1 second at p95, on the
+  single-instance deployment v0.x supports (ADR-013). Across instances this does not hold at all
+  until `LISTEN`/`NOTIFY` lands in slice 4.8: a write on one instance never reaches another.
 - **NFR-PER-004** No `/sdk/**` request performs a database query on the request path. The engine
   is a pure function over an in-memory ruleset; key authentication is served from the in-memory key
   cache (FR-KEY-007); `last_used_at` is flushed asynchronously (FR-KEY-006). "Evaluation path"
@@ -283,7 +290,9 @@ here is a place they will disagree, silently and in production (E-011).
 ### Reliability
 - **NFR-REL-001** Service unavailability degrades applications to last-known-good, then to
   code-level defaults. It never causes an application error.
-- **NFR-REL-002** The in-memory cache rebuilds from the database on startup and after any write.
+- **NFR-REL-002** The in-memory cache rebuilds from the database on startup and after any write
+  handled by that instance. Writes handled elsewhere do not invalidate it, which is why v0.x runs
+  as a single instance (ADR-013).
 - **NFR-REL-003** Liveness (`/actuator/health/liveness`) ignores the database entirely. Readiness
   (`/actuator/health/readiness`) requires the ruleset cache only. Database health is reported as a
   separate indicator on `/actuator/health` and gates nothing. A database outage that made the
@@ -334,3 +343,6 @@ Corrections to this document, recorded rather than silently edited.
 | E-031 | FR-KEY-008 | Added: client rulesets carry no user overrides, and overrides do not apply to client keys on either serving path. | `user_overrides.user_key` holds real user identifiers and the documented ruleset shape shipped them verbatim. FR-KEY-005 filtered by flag only, so marking one flag client-visible published the list of specific users being targeted to every browser. Suite 6 asserted only that hidden *flags* were absent. |
 | E-032 | NFR-SEC-002 | Extended to cover override user keys, not just flag visibility. | Same as E-031: the requirement constrained which flags appear, not which identifiers. |
 | E-033 | NFR-SEC-005 | Specifies the algorithm, the default limit, the 429 behaviour, and that `/sdk/stream` is counted at connection rather than per event. | The requirement named no algorithm, limit, storage or dependency, yet a roadmap slice scheduled it. It also interacts badly with a stream, which is one request lasting hours. |
+| E-034 | Section 1, Scope | Adds regex operators, revocable sessions and multi-instance operation to what is out of scope for v0.x. | Each was cut or constrained by a finding in the review (E-009, E-028, ADR-013) and the scope section is where a reader looks first. |
+| E-035 | FR-STR-004 | Added: streams use `SseEmitter`, with a stated ceiling of 500 concurrent streams per key and 1,000 per environment. | ADR-004 mentioned "a per-key connection limit" with no number, requirement or test, and a blocking implementation would have capped concurrency at Tomcat's ~200 threads — a ceiling chosen by accident. |
+| E-036 | NFR-PER-003, NFR-REL-002 | Both are qualified as holding on a single instance, with the multi-instance fix named and scheduled. | The ruleset cache and the stream registry are both in process, so a second instance behind a load balancer serves stale flags and never notifies its SDKs. Nothing in ten documents said Flaglane was single-instance, while "self-hostable" invites scaling it. |

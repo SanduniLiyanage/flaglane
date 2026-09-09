@@ -8,9 +8,15 @@ before proceeding.
 
 1. `CLAUDE.md` (this file)
 2. `docs/ROADMAP.md` — what is done and what is next
-3. `docs/SRS.md` — requirement IDs
+3. `docs/SRS.md` — requirement IDs, and the errata table at the bottom
 4. `docs/ARCHITECTURE.md` — layering and algorithms
 5. `docs/DECISIONS.md` — why things are the way they are
+6. `docs/API.md` — the endpoint contract
+7. `docs/DATABASE.md` — schema, constraints and what they enforce
+8. `docs/TESTING.md` — the required suites
+9. `docs/WORKFLOW.md` — branches, commits, definition of done
+
+All nine, not the first five. `docs/BENCHMARKS.md` is a stub until there are numbers in it.
 
 ## Stack
 
@@ -27,6 +33,7 @@ before proceeding.
 | SDK | TypeScript, published to npm |
 | Tests | JUnit 5, Mockito, Testcontainers, AssertJ |
 | CI | GitHub Actions |
+| Static analysis | **Undecided.** SpotBugs, Error Prone and PMD are three dependencies with three failure modes. Choose one before roadmap slice 1.1 and record it as an ADR |
 
 Do not add a dependency without asking. Every dependency is a maintenance obligation.
 
@@ -38,6 +45,7 @@ backend/src/main/java/io/github/sanduniliyanage/flaglane/
   project/           projects and environments
   apikey/            key issuance, hashing, authentication
   flag/              flag definitions and per-environment configuration
+  account/           users, registration, sign-in, JWT issuance
   targeting/         rules, user overrides
   evaluation/        the engine — pure logic, no Spring, no database
   streaming/         SSE connections and change broadcast

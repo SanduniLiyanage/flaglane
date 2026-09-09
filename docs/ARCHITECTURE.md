@@ -147,7 +147,21 @@ holds open SSE connections keyed by environment.
 Server-Sent Events rather than WebSockets: the traffic is one-directional, SSE is plain HTTP so it
 crosses proxies without upgrade negotiation, and browsers reconnect automatically (ADR-004). The
 SDK also polls as a fallback, so a blocked stream degrades to eventual consistency rather than
-staleness forever (FR-SDK-004).
+staleness forever (FR-SDK-004). Connections are held by `SseEmitter` so they do not each occupy a
+servlet thread, with a stated ceiling per key and per environment (FR-STR-004).
+
+### One instance, and why that is written down
+
+**Both the cache rebuild and the stream registry are in process.** Run two instances behind a load
+balancer and a write on instance A never reaches instance B: B serves a stale ruleset until it
+restarts, and every SDK holding a stream to B is never told anything changed. Half the traffic
+would get a kill switch that does not kill, silently, in a system that otherwise looks healthy.
+
+So v0.x is a single instance, deliberately, and it is recorded in ADR-013 rather than left as a
+property nobody stated. The intended fix is PostgreSQL `LISTEN`/`NOTIFY` on commit — no new
+dependency, and the database is already in the transaction that needs observing — scheduled as
+roadmap slice 4.8. Until it lands, do not scale this horizontally; the failure mode is stale flags
+rather than an error, which is the worst kind to debug.
 
 ## 6. Tenant isolation
 

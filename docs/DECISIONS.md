@@ -18,8 +18,8 @@ Testcontainers support, and a large pool of developers who can read it.
 self-hosted tool. Accepted: `docker compose up` is still one command, and the ecosystem depth is
 worth more here than image size.
 
-**Rejected.** Go — smaller and faster to start, but a new language on a four-week schedule alongside
-an unfamiliar domain is two risks at once. Node — the SDK is TypeScript already, and running both
+**Rejected.** Go — smaller and faster to start, but a new language alongside an unfamiliar domain
+is two risks at once. Node — the SDK is TypeScript already, and running both
 sides in one language would have hidden parity bugs behind shared code rather than exposing them.
 
 ---
@@ -73,6 +73,19 @@ connection limit.
 
 **Rejected.** WebSockets — bidirectional, which this traffic is not, and more infrastructure
 friction for no gain. Polling alone — a 30-second worst case is unacceptable for a kill switch.
+
+**Amended, twice.**
+
+*Implementation.* Streams use `SseEmitter`, which releases the request thread. A blocking
+implementation would cap concurrent streams at Tomcat's ~200 threads, which is a connection ceiling
+nobody chose. The ceiling that is chosen: 500 concurrent streams per key and 1,000 per environment,
+configurable, refused with 429 above that (FR-STR-004). "A per-key connection limit" above named no
+number, and an unnumbered limit is not a limit.
+
+*The cut list.* If SSE is cut under time pressure, the fallback is 5-second polling, not the
+30-second polling this entry rejects. A 30-second worst case on a kill switch is unacceptable
+whether it arrives by design or by triage; five seconds is an accepted degradation, and it is
+recorded here so that the first thing on the cut list does not silently contradict a decision.
 
 ---
 
@@ -234,3 +247,37 @@ what v0.2 should build; it needs a requirement, a schema row, a rotation policy 
 detection rule, and half of that shipped is worse than none. Stateless refresh tokens with a short
 lifetime — the same exposure as a long access token, with an endpoint that implies revocation
 exists.
+
+---
+
+## ADR-013 — v0.x runs as a single instance
+
+**Context.** The ruleset cache is rebuilt in process on write (ADR-008), and the SSE registry holds
+open connections in process (ARCHITECTURE section 5). Run two instances behind a load balancer and
+a write on instance A never reaches instance B: B serves a stale cache until it restarts, and every
+SDK connected to B's stream never learns that anything changed. The kill switch does not kill for
+half the traffic, and NFR-PER-003 fails silently rather than loudly. Nothing in the documentation
+said so, while "self-hostable" is an invitation to scale it.
+
+**Decision.** v0.x runs as exactly one API instance. This is stated in the README, in
+`docs/ARCHITECTURE.md` and in the requirements it qualifies, rather than left to be discovered by
+whoever first sets `replicas: 2`.
+
+**Consequences.** No horizontal scaling and no rolling deploy without a propagation gap: during a
+restart, the new instance serves from a freshly built cache and the old one is gone, which is fine,
+but two overlapping instances are not. In exchange, every propagation guarantee in the
+specification is true as written for the deployment the product actually supports. Rate limiting
+buckets and the stream connection ceiling are per instance, which is exact under this constraint
+and approximate the moment it lifts.
+
+**The intended fix**, scheduled as slice 4.8: PostgreSQL `LISTEN`/`NOTIFY` on commit. The write
+transaction issues `NOTIFY ruleset_changed, '<environment id>'`; every instance listens, invalidates
+its cache for that environment and fans the change out to its own stream registry. No new
+dependency — the database is already there and already carries the transaction that has to be
+observed. It is roughly forty lines and it is not in v0.x only because it has not been built and
+tested, not because it is hard.
+
+**Rejected.** Saying nothing and hoping — the failure is silent, it looks exactly like a working
+system, and it fails hardest at the moment the kill switch is being used. Redis pub/sub — a second
+piece of infrastructure for every self-hoster, to do what the database can already do. Sticky
+sessions — does not help; the problem is the write, not the reader.

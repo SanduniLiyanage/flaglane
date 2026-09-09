@@ -62,6 +62,12 @@ Flaglane is a flag engine, not an experimentation platform. It does not include:
 - Role-based access control, SSO, or approval workflows
 - Scheduled flag changes
 - SDKs beyond TypeScript
+- Horizontal scaling. **v0.x runs as a single API instance.** The ruleset cache and the stream
+  registry both live in process, so a second instance would serve stale flags and its connected
+  SDKs would never be told anything changed. PostgreSQL `LISTEN`/`NOTIFY` is the intended fix and
+  is on the roadmap; until it ships, run one instance (ADR-013)
+- Server-side sign-out. Dashboard sessions are a single access token with no revocation list, so
+  signing out discards it in the browser and it stays valid until it expires (ADR-012)
 
 If you need experimentation with a statistics engine, use GrowthBook. If you need enterprise
 governance, use Unleash or Flagsmith.

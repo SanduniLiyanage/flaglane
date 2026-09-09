@@ -125,7 +125,7 @@ are not evidence.
 `.github/workflows/ci.yml` fails on any of:
 
 1. Formatting differences (`spotlessCheck`)
-2. Static analysis warnings
+2. Static analysis warnings — the tool is not chosen yet; see the note on roadmap slice 1.1
 3. Any failing test
 4. `evaluation/` line coverage below 90%
 5. SDK test failures or type errors
