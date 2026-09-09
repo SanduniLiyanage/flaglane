@@ -46,13 +46,21 @@ workflows, scheduled changes, SDKs other than TypeScript.
 - **FR-ACC-001** A user registers with email and password. Passwords are stored with bcrypt.
 - **FR-ACC-002** A user signs in and receives a short-lived access token and a refresh token.
 - **FR-PRJ-001** A signed-in user creates a project with a display name and a URL-safe key.
-- **FR-PRJ-002** A project key is unique across the system and immutable after creation.
+- **FR-PRJ-002** A project key is unique across the system and immutable after creation. Both
+  halves are enforced by the database: a unique constraint and a before-update trigger.
 - **FR-PRJ-003** A user sees only projects they own. Cross-project access returns 404, not 403,
   so project existence is not disclosed.
 - **FR-ENV-001** Creating a project creates `development`, `staging` and `production`
   environments automatically.
 - **FR-ENV-002** A user may create additional environments with a unique key per project.
-- **FR-ENV-003** An environment cannot be deleted while it holds a non-revoked API key.
+- **FR-ENV-003** An environment is deleted through `DELETE .../environments/{envKey}`, and cannot
+  be deleted while it holds a non-revoked API key. Deleting one cascades to its flag
+  configurations, rules and overrides, and blanks the environment reference on its audit entries
+  rather than removing them.
+- **FR-ENV-004** Creating an environment creates a configuration for every non-archived flag in
+  the project, in the same transaction — disabled, `fallthroughValue` `false`, rollout 0. Without
+  this a new environment serves an empty ruleset, every flag falls through to the SDK's code-level
+  fallback, and the result looks exactly like a working system.
 
 ### 4.2 API keys
 
@@ -64,18 +72,28 @@ workflows, scheduled changes, SDKs other than TypeScript.
 - **FR-KEY-004** A `server` key reads all flags in its environment.
 - **FR-KEY-005** A `client` key reads only flags marked client-side visible. Browser keys are
   public by nature and must not expose backend-only flags.
-- **FR-KEY-006** The last-used timestamp is recorded, at most once per minute per key.
+- **FR-KEY-006** The last-used timestamp is recorded, at most once per minute per key, and is
+  written asynchronously off the request path. A serving request never waits on a write.
+- **FR-KEY-007** Key authentication is served from an in-memory cache of key hashes, built at
+  startup and invalidated on issue and on revoke. A `/sdk/**` request performs no database query,
+  which is what makes "the database is down and serving continues" true. FR-KEY-003's "rejected
+  immediately" is a property of the invalidation, not of a per-request lookup.
 
 ### 4.3 Flags
 
 - **FR-FLG-001** A flag has a key unique within its project, a name, and a description.
-- **FR-FLG-002** A flag key is immutable after creation. Application code depends on it.
+- **FR-FLG-002** A flag key is immutable after creation, enforced by a before-update trigger.
+  Application code depends on it.
 - **FR-FLG-003** Creating a flag creates a configuration in every environment of the project:
   disabled, `fallthroughValue` `false`, rollout 0, no rules and no overrides.
 - **FR-FLG-004** A flag is marked client-side visible or not. Default is not visible.
-- **FR-FLG-005** A flag is archived, never hard-deleted, so audit history stays meaningful.
+- **FR-FLG-005** A flag is archived, never hard-deleted, so audit history stays meaningful. An
+  archived flag keeps its key reserved: the key cannot be reused for a new flag, because a key
+  that comes back with a different meaning makes the audit trail lie.
 - **FR-FLG-006** Each configuration holds: `enabled`, `offValue`, `fallthroughValue`,
   `rolloutBasisPoints`, `rolloutSalt`, ordered targeting rules, and user overrides.
+- **FR-FLG-007** An archived flag is restorable. Restoring changes neither its key nor its
+  configurations. Archiving with no way back is a trap for a mis-click.
 
 ### 4.4 Targeting
 
@@ -84,8 +102,11 @@ workflows, scheduled changes, SDKs other than TypeScript.
   and a result value.
 - **FR-RUL-003** Supported operators: `EQUALS`, `NOT_EQUALS`, `IN`, `NOT_IN`, `CONTAINS`,
   `STARTS_WITH`, `ENDS_WITH`. There is no regular-expression operator in v0.x.
-- **FR-RUL-004** Rule priorities within a configuration are contiguous and unique. Reordering is
-  a single atomic operation.
+- **FR-RUL-004** Rule priorities within a configuration are unique, enforced by a non-deferrable
+  unique constraint, and contiguous from 0, assigned by the service and asserted by a repository
+  test. Contiguity is not expressible as a declarative constraint and is not claimed to be.
+  Reordering replaces the whole list in one transaction, so no intermediate state is ever visible
+  or ever holds a duplicate priority.
 - **FR-RUL-005** *Withdrawn* (E-010). It required a regex match timeout, which neither runtime can
   provide. The ID is retired and is never reused.
 
@@ -157,8 +178,12 @@ here is a place they will disagree, silently and in production (E-011).
 
 ### 4.6 Serving and streaming
 
-- **FR-SRV-001** `GET /sdk/config` returns the complete ruleset for the key's environment, with
-  an ETag. A matching `If-None-Match` returns 304.
+- **FR-SRV-001** `GET /sdk/config` returns the ruleset the key is entitled to, with an ETag. A
+  matching `If-None-Match` returns 304. The ETag is derived from
+  `(environments.ruleset_version, key_type)`, never from the version alone: one URL serves two
+  different bodies at the same version depending on key type. Every `/sdk/**` response carries
+  `Cache-Control: private, no-store` and `Vary: Authorization`, so no intermediary can serve a
+  server key's ruleset to a browser holding a client key.
 - **FR-SRV-002** `POST /sdk/evaluate` evaluates named flags server-side for thin clients, running
   the same engine as the SDK. The caller supplies a user context and a fallback per flag. The
   response carries, per flag, the resolved value and a `reason` drawn from `OFF`, `OVERRIDE`,
@@ -188,10 +213,16 @@ here is a place they will disagree, silently and in production (E-011).
 
 ### 4.8 Audit
 
-- **FR-AUD-001** Every mutation records actor, timestamp, project, environment, flag, action,
-  previous value and new value, in the same transaction as the change.
-- **FR-AUD-002** Audit entries are append-only. There is no update or delete path.
-- **FR-AUD-003** A user views the audit trail for a flag or an environment, newest first.
+- **FR-AUD-001** Every mutation records actor, timestamp, project, action, previous value and new
+  value, in the same transaction as the change. Environment and flag are recorded where the event
+  has them and are null where it does not: project creation has neither, key creation has no flag.
+  The action is drawn from a fixed vocabulary (`docs/DATABASE.md`).
+- **FR-AUD-002** Audit entries are append-only, enforced by a before-update-or-delete trigger and
+  by grants revoked from the application role. The trigger is what makes this true regardless of
+  role, ownership or superuser status; the revoke alone is a speed bump.
+- **FR-AUD-003** A user views the audit trail for a flag or an environment, newest first, paginated
+  by keyset on `(created_at desc, id desc)`. Not by offset: entries arrive while a user is paging,
+  and offset pagination against a descending-time index silently repeats and skips rows.
 
 ### 4.9 Dashboard
 
@@ -213,7 +244,11 @@ here is a place they will disagree, silently and in production (E-011).
   cannot approach it — and a measurement that cannot fail is not evidence.
 - **NFR-PER-002** `GET /sdk/config`: p99 under 50 ms served from cache, measured locally.
 - **NFR-PER-003** A dashboard change reaches connected SDKs in under 1 second at p95.
-- **NFR-PER-004** The evaluation path performs zero database queries per request.
+- **NFR-PER-004** No `/sdk/**` request performs a database query on the request path. The engine
+  is a pure function over an in-memory ruleset; key authentication is served from the in-memory key
+  cache (FR-KEY-007); `last_used_at` is flushed asynchronously (FR-KEY-006). "Evaluation path"
+  means the whole served request, not just the engine — the engine alone was never the part that
+  touched the database.
 
 ### Security
 - **NFR-SEC-001** API keys stored as SHA-256 hashes. No plaintext, no reversible encryption.
@@ -226,7 +261,11 @@ here is a place they will disagree, silently and in production (E-011).
 - **NFR-REL-001** Service unavailability degrades applications to last-known-good, then to
   code-level defaults. It never causes an application error.
 - **NFR-REL-002** The in-memory cache rebuilds from the database on startup and after any write.
-- **NFR-REL-003** `/actuator/health` reports database and cache readiness.
+- **NFR-REL-003** Liveness (`/actuator/health/liveness`) ignores the database entirely. Readiness
+  (`/actuator/health/readiness`) requires the ruleset cache only. Database health is reported as a
+  separate indicator on `/actuator/health` and gates nothing. A database outage that made the
+  instance report unhealthy would have an orchestrator remove or restart it — taking the serving
+  path down at exactly the moment NFR-REL-001 exists to survive.
 
 ### Maintainability
 - **NFR-MNT-001** `evaluation/` has no framework dependency and 90% line coverage.
@@ -252,3 +291,17 @@ Corrections to this document, recorded rather than silently edited.
 | E-011 | FR-RUL-006 to FR-RUL-010 | Added: attribute types, type-strict and case-sensitive comparison, absent attributes never match, string operators are string-only, rules validated at write time. | Missing-attribute handling, case sensitivity and coercion were unspecified, and Java and JavaScript default to opposite answers on all three. This is one requirement implemented two incompatible ways, and the parity suite could not have expressed the divergence. |
 | E-012 | FR-SRV-002 | Specifies the request and response shape, the `reason` vocabulary, and that an unreadable flag reports `FLAG_NOT_FOUND`. | The endpoint had no specified request or response shape anywhere, so there was no defined way for a caller to supply the fallback FR-EVL-007 requires. |
 | E-013 | NFR-PER-001 | Budget tightened from p99 under 1 ms to p99 under 25 µs, with a stated rule count. | A hash and a map lookup cannot approach a millisecond, so the requirement was satisfied by construction and its measurement proved nothing. |
+| E-014 | FR-PRJ-002, FR-FLG-002 | Immutability is enforced by a before-update trigger, stated alongside the unique constraint. | `docs/DATABASE.md` mapped `projects.key` unique to FR-PRJ-002 and claimed constraints exist "so that a bug in service code cannot produce invalid data". A unique constraint does not do immutability, and nothing covered FR-FLG-002 at all. |
+| E-015 | FR-ENV-003 | Names the deletion endpoint and the cascade behaviour. | The requirement said when an environment cannot be deleted; `docs/API.md` exposed no way to delete one, so the requirement governed an operation that did not exist. |
+| E-016 | FR-ENV-004 | Added: creating an environment creates a configuration for every existing flag, in the same transaction. | FR-FLG-003 creates configurations when a *flag* is created and FR-ENV-002 allows creating environments later, so a new environment served an empty ruleset — every flag falling through to code-level fallbacks, silently, looking exactly like a working system. |
+| E-017 | FR-FLG-005 | States that an archived flag's key stays reserved. | `flags (project_id, key)` unique applies to archived rows, so a key can never be reused. Defensible, but it was left for the dashboard to discover at runtime. |
+| E-018 | FR-FLG-007 | Added: an archived flag can be restored. | FR-FLG-005 archived flags and nothing restored them, making a mis-click permanent. |
+| E-019 | FR-RUL-004 | Uniqueness is a non-deferrable database constraint; contiguity is service-enforced and asserted by a repository test, not claimed as a constraint. | Contiguity is not expressible declaratively in PostgreSQL. The deferrable constraint was also the wrong tool: it disables `ON CONFLICT` on the table permanently and moves violations to commit time, outside the `@Transactional` method, and the API replaces rule lists wholesale so no intermediate duplicate priority ever exists. |
+| E-020 | FR-KEY-006 | The last-used write is asynchronous and off the request path. | FR-KEY-006 put a throttled database *write* on the serving path, contradicting NFR-PER-004 and "database down, serving continues". |
+| E-021 | FR-KEY-007 | Added: key authentication is served from an in-memory cache invalidated on issue and revoke. | `docs/DATABASE.md` listed `api_keys (key_hash)` as "authentication on every SDK request" and eleven lines later said the evaluation path never touches the database. Both could not hold, and with a per-request lookup a database outage takes serving down at 401. |
+| E-022 | FR-SRV-001 | ETag is derived from `(ruleset_version, key_type)`; responses carry `Cache-Control: private, no-store` and `Vary: Authorization`. | There was no environment-level version column anywhere for the ETag or the SSE event to come from. Worse, one URL returns a full ruleset to a server key and a filtered one to a client key, so an ETag keyed on version alone — with no `Vary` — lets an intermediary serve backend-only flags, rules and overrides to a browser. |
+| E-023 | FR-AUD-001 | Environment and flag are recorded where the event has them and are null where it does not; the action vocabulary is fixed. | "Every mutation records ... environment, flag" is impossible for project creation, which has neither, and key creation, which has no flag, while the schema showed both as non-null foreign keys. |
+| E-024 | FR-AUD-002 | Enforced by a before-update-or-delete trigger as well as revoked grants, with a separate application role. | A revoke does not hold when Flyway and the application share a role, leaves `TRUNCATE` and `DROP` available, and is bypassed entirely by Testcontainers' default superuser — so suite 10 could not have passed as written. |
+| E-025 | FR-AUD-003 | Pagination is keyset on `(created_at desc, id desc)`. | Pagination was unspecified; offset against a descending-time index repeats and skips rows while new entries arrive. |
+| E-026 | NFR-PER-004 | Defines the evaluation path as the whole served `/sdk/**` request, and states how authentication and `last_used_at` stay off it. | "Zero database queries per request" was contradicted by key authentication and the last-used write, both of which happen on every serving request. |
+| E-027 | NFR-REL-003 | Liveness ignores the database; readiness requires the ruleset cache only; database health gates nothing. | A single health endpoint reporting the database means an outage has the orchestrator evict or restart the instance, taking the serving path down at precisely the moment NFR-REL-001 exists to survive. |

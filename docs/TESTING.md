@@ -63,8 +63,11 @@ new endpoint added without isolation fails the build.
 
 ### 6. Client key exposure — FR-KEY-005
 An environment holding both visible and non-visible flags. Assert a client key's `/sdk/config`
-contains only the visible ones, and that no rule, override or default from a hidden flag appears
-anywhere in the payload.
+contains only the visible ones, and that no rule, override or value from a hidden flag appears
+anywhere in the payload. Assert that a client key's ETag does not validate a server key's request:
+issue both keys, take the client key's ETag, send it as `If-None-Match` on a server-key request,
+and assert 200 with the full body rather than 304. Assert the response carries
+`Cache-Control: private, no-store` and `Vary: Authorization`.
 
 ### 7. Evaluation never throws — FR-EVL-006
 Feed the engine a malformed rule, an unknown operator, a null user key, an unknown attribute, an
@@ -82,8 +85,11 @@ must agree on every case. Two implementations of one specification will drift; t
 that catches it.
 
 ### 10. Audit immutability — FR-AUD-002
-Attempt update and delete against `audit_entries` as the application role. Assert both fail at the
-database, not in service code.
+Attempt `UPDATE`, `DELETE` and `TRUNCATE` against `audit_entries`, both as the application role and
+as the owning role. Assert all fail at the database, not in service code. The fixture provisions
+`flaglane_app` as a non-superuser role with the production grants; a test run as
+`PostgreSQLContainer`'s default superuser bypasses privilege checks entirely and would pass while
+proving nothing, which is why the trigger, not the revoke, is the thing under test.
 
 ### 11. Rollout monotonicity — FR-EVL-008
 Step a flag from 0 to 10000 basis points in 100 steps over the committed key set. Assert that at

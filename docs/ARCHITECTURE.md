@@ -122,7 +122,15 @@ The serving API never assembles a response from the database per request (NFR-PE
 - On startup, and after any write, the service rebuilds an immutable `Ruleset` snapshot per
   environment and swaps the reference atomically.
 - Reads take the current reference. No locks on the read path.
-- Each snapshot carries a version, exposed as an ETag, so `GET /sdk/config` answers 304 cheaply.
+- Each snapshot carries `environments.ruleset_version`, bumped in the write transaction. The ETag
+  is derived from that version *and the key type*, because one URL serves a full ruleset to a
+  server key and a filtered one to a client key. A version alone would let a client-key ETag
+  validate a server-key request.
+
+Authentication is cached the same way and for the same reason. A `/sdk/**` request that had to
+look up `key_hash` in the database would make "the database is down and serving continues" false,
+so key hashes live in an in-memory cache invalidated on issue and revoke (FR-KEY-007), and
+`last_used_at` is flushed on a background schedule rather than on the request (FR-KEY-006).
 
 Rebuilding the whole environment on any change is deliberately simple. At the scale this targets —
 hundreds of flags, tens of environments — a full rebuild takes milliseconds, and it removes an
@@ -161,7 +169,7 @@ Isolation is structural:
 | Unknown flag key | Caller's fallback returned, with reason `FLAG_NOT_FOUND`. Never a 404 |
 | Missing user key | Overrides and rollout skipped, rules still evaluated, then `fallthroughValue` |
 | Engine exception | `fallthroughValue` returned, warning logged, never propagated |
-| Database down | Serving continues from cache; management API returns 503 |
+| Database down | Serving continues from cache, including key authentication; management API returns 503; readiness stays up |
 | Flaglane unreachable from SDK | Last known ruleset, then code-level fallback |
 | Stream dropped | Backoff reconnect with jitter, polling meanwhile |
 
@@ -170,5 +178,14 @@ The last two are the product's central promise. Everything else in this document
 ## 8. Deployment
 
 `docker compose up` runs API, PostgreSQL and dashboard. The published image takes all
-configuration from environment variables and runs Flyway on startup. Health and readiness are on
-`/actuator/health`.
+configuration from environment variables and runs Flyway on startup.
+
+Two database roles, not one: `flaglane_migrator` owns the schema and runs Flyway at startup,
+`flaglane_app` runs the application and holds no DDL privileges and no write privileges on
+`audit_entries`. Compose, production and the Testcontainers fixture all provision both, because an
+append-only guarantee that only holds when nobody is a superuser is not a guarantee.
+
+Liveness is `/actuator/health/liveness` and ignores the database. Readiness is
+`/actuator/health/readiness` and requires the ruleset cache only. Database health is a separate
+indicator that gates no traffic (NFR-REL-003) — an outage must not get the serving path evicted
+by its own orchestrator.

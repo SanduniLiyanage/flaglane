@@ -27,7 +27,12 @@ Auth: `Authorization: Bearer <jwt>`.
 | GET | `/api/projects` | Caller's projects only |
 | POST | `/api/projects` | Creates three default environments (FR-ENV-001) |
 | GET | `/api/projects/{projectKey}/environments` | |
-| POST | `/api/projects/{projectKey}/environments` | |
+| POST | `/api/projects/{projectKey}/environments` | Creates a configuration for every existing flag (FR-ENV-004) |
+| DELETE | `/api/projects/{projectKey}/environments/{envKey}` | Refused while a non-revoked key exists (FR-ENV-003) |
+
+Projects are not deletable in v0.x. A project owns an audit trail that outlives it, and nothing in
+the product needs the operation; the alternative is a cascade that quietly destroys the record of
+what was destroyed.
 
 ### Keys
 | Method | Path | Purpose |
@@ -43,6 +48,7 @@ Auth: `Authorization: Bearer <jwt>`.
 | POST | `/api/projects/{projectKey}/flags` | Creates configs in all environments (FR-FLG-003) |
 | PATCH | `/api/projects/{projectKey}/flags/{flagKey}` | Name, description, visibility. Key immutable (FR-FLG-002) |
 | POST | `/api/projects/{projectKey}/flags/{flagKey}/archive` | FR-FLG-005 |
+| POST | `/api/projects/{projectKey}/flags/{flagKey}/restore` | FR-FLG-007 |
 
 ### Configuration and targeting
 | Method | Path | Purpose |
@@ -64,7 +70,10 @@ the endpoint says so in its OpenAPI description.
 ### Audit
 | Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/api/projects/{projectKey}/audit` | Newest first, paginated |
+| GET | `/api/projects/{projectKey}/audit` | Newest first, keyset paginated on `(created_at, id)` |
+
+Audit pagination is keyset, not offset: `?before=<created_at>,<id>&limit=n`. Entries arrive while
+a reader pages, and an offset against a descending-time index repeats and skips rows.
 
 ## Serving API — `/sdk/**`
 
@@ -78,6 +87,22 @@ Auth: `Authorization: Bearer <sdk key>`. Rate limited per key (NFR-SEC-005).
 
 `GET /sdk/config` with a `client` key returns only client-side-visible flags (FR-KEY-005). This is
 a security boundary, not a filter for convenience: the response reaches browsers.
+
+### Caching
+
+Every `/sdk/**` response carries:
+
+```
+Cache-Control: private, no-store
+Vary: Authorization
+ETag: "<ruleset_version>-<key_type>"
+```
+
+The ETag includes the key type because one URL returns two different bodies at the same version —
+a server key's full ruleset and a client key's filtered one. Keyed on the version alone, a client
+key's ETag would validate a server key's request, and any intermediary caching on URL could hand a
+browser the flags, rules and overrides that were filtered out for it. `Vary` and `no-store` close
+the same hole from the other side.
 
 ### Ruleset shape
 
