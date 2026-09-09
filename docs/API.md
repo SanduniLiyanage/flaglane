@@ -8,7 +8,10 @@ The generated OpenAPI document at `/v3/api-docs` is authoritative; this file exp
 - JSON, `application/json`, UTC ISO-8601 timestamps.
 - Errors follow RFC 9457 Problem Details: `type`, `title`, `status`, `detail`, `instance`.
 - Cross-tenant access returns **404**, never 403 (FR-PRJ-003).
-- Mutations require an `Idempotency-Key` header where retry is plausible.
+- There is no `Idempotency-Key`. Half-specified idempotency is worse than none, because callers
+  send the header and assume it does something. If key creation ever needs it — the one mutation
+  where a retry could silently mint a second live credential — it arrives with a requirement, a
+  store, a retention policy and a defined replay response.
 
 ## Management API — `/api/**`
 
@@ -18,8 +21,7 @@ Auth: `Authorization: Bearer <jwt>`.
 | Method | Path | Purpose |
 | --- | --- | --- |
 | POST | `/api/auth/register` | FR-ACC-001 |
-| POST | `/api/auth/login` | FR-ACC-002, returns access and refresh tokens |
-| POST | `/api/auth/refresh` | Exchange refresh token |
+| POST | `/api/auth/login` | FR-ACC-002, returns one access token valid 8 hours |
 
 ### Projects and environments
 | Method | Path | Purpose |
@@ -85,8 +87,11 @@ Auth: `Authorization: Bearer <sdk key>`. Rate limited per key (NFR-SEC-005).
 | POST | `/sdk/evaluate` | Server-side evaluation for thin clients (FR-SRV-002) |
 | GET | `/sdk/stream` | SSE change notifications (FR-SRV-003) |
 
-`GET /sdk/config` with a `client` key returns only client-side-visible flags (FR-KEY-005). This is
-a security boundary, not a filter for convenience: the response reaches browsers.
+`GET /sdk/config` with a `client` key returns only client-side-visible flags (FR-KEY-005), and
+carries **no `overrides` array on any flag** (FR-KEY-008). This is a security boundary, not a
+filter for convenience: the response reaches browsers, and override user keys are real user
+identifiers. The limitation that follows — user overrides do not apply to client keys, on either
+serving path — is deliberate and documented rather than worked around with a hash.
 
 ### Caching
 

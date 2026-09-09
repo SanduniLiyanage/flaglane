@@ -184,7 +184,8 @@ Not enforced by the database, and enforced in service code with a repository tes
   gaps" is an aggregate over the group and needs a deferred constraint trigger. Rules are replaced
   as a whole list in one transaction (`PUT .../rules`), so the service assigns priorities from 0
   and a repository test asserts the result. Nothing in the evaluation order needs gap-free
-  priorities — only a stable total order — so this is a tidiness invariant, not a correctness one.
+  priorities, only a stable total order, so this is a tidiness invariant rather than a
+  correctness one.
 
 The unique constraint on `targeting_rules (flag_config_id, priority)` is **not** deferrable. It
 was specified as deferrable to allow in-place priority swaps, which the API forbids anyway: rules

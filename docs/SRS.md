@@ -44,7 +44,10 @@ workflows, scheduled changes, SDKs other than TypeScript.
 ### 4.1 Accounts and projects
 
 - **FR-ACC-001** A user registers with email and password. Passwords are stored with bcrypt.
-- **FR-ACC-002** A user signs in and receives a short-lived access token and a refresh token.
+- **FR-ACC-002** A user signs in and receives a single access token, a JWT valid for 8 hours.
+  There is no refresh token in v0.x, and therefore no `POST /api/auth/refresh`. A refresh token
+  needs either a table to revoke against or an accepted window in which a stolen token outlives
+  sign-out, and v0.x is not going to pretend it has the first.
 - **FR-PRJ-001** A signed-in user creates a project with a display name and a URL-safe key.
 - **FR-PRJ-002** A project key is unique across the system and immutable after creation. Both
   halves are enforced by the database: a unique constraint and a before-update trigger.
@@ -66,7 +69,10 @@ workflows, scheduled changes, SDKs other than TypeScript.
 
 - **FR-KEY-001** A key belongs to exactly one environment and has type `server` or `client`.
 - **FR-KEY-002** The plaintext key is displayed once at creation and never again. Only a SHA-256
-  hash and a short non-secret prefix are stored.
+  hash and a short non-secret prefix are stored. A key is 32 bytes from a CSPRNG, base64url
+  encoded, behind a type marker: `flg_srv_…` or `flg_cli_…` (format in `docs/DATABASE.md`). The
+  256 bits of entropy are what make a fast hash the right choice rather than bcrypt (ADR-007);
+  the marker is for humans and secret scanners and is never trusted for authorisation.
 - **FR-KEY-003** A key is revocable. A revoked key is rejected immediately, including on
   already-open streams.
 - **FR-KEY-004** A `server` key reads all flags in its environment.
@@ -78,6 +84,15 @@ workflows, scheduled changes, SDKs other than TypeScript.
   startup and invalidated on issue and on revoke. A `/sdk/**` request performs no database query,
   which is what makes "the database is down and serving continues" true. FR-KEY-003's "rejected
   immediately" is a property of the invalidation, not of a per-request lookup.
+- **FR-KEY-008** A ruleset served to a `client` key contains no user overrides at all, for any
+  flag. `user_overrides.user_key` holds real user identifiers, and a ruleset that ships them puts
+  the list of people you have been targeting into every browser that loads the page.
+
+  The consequence is a real limitation, stated rather than hidden: **user overrides do not apply
+  to client keys**, on either serving path. `POST /sdk/evaluate` with a client key ignores them
+  too, so both paths give the same answer for the same key and the parity suite can assert it.
+  Targeting a specific user client-side is done with a targeting rule on an attribute the
+  application already sends.
 
 ### 4.3 Flags
 
@@ -226,7 +241,9 @@ here is a place they will disagree, silently and in production (E-011).
 
 ### 4.9 Dashboard
 
-- **FR-UI-001** Sign in and sign out.
+- **FR-UI-001** Sign in, and sign out by discarding the token in the browser. v0.x has no
+  server-side session invalidation, so a token that has already been stolen stays valid until it
+  expires (FR-ACC-002).
 - **FR-UI-002** Project list, project creation, environment switcher.
 - **FR-UI-003** Flag list per environment showing key, name, enabled state and rollout.
 - **FR-UI-004** Flag detail: kill switch, default value, rollout slider, rule editor with
@@ -252,10 +269,16 @@ here is a place they will disagree, silently and in production (E-011).
 
 ### Security
 - **NFR-SEC-001** API keys stored as SHA-256 hashes. No plaintext, no reversible encryption.
-- **NFR-SEC-002** A client key never returns a flag that is not client-side visible.
+- **NFR-SEC-002** A client key never returns a flag that is not client-side visible, and never
+  returns a user key from any override, visible flag or not (FR-KEY-008).
 - **NFR-SEC-003** No API key or credential is ever written to logs, including on error paths.
 - **NFR-SEC-004** Tenant isolation is enforced at the repository layer, not by convention.
-- **NFR-SEC-005** The SDK evaluation API is rate limited per key.
+- **NFR-SEC-005** `GET /sdk/config` and `POST /sdk/evaluate` are rate limited per key by an
+  in-memory token bucket: 600 requests per minute per key by default, configurable, answering 429
+  with `Retry-After`. `GET /sdk/stream` is counted once when the connection is established and
+  never per event — a stream is one request that lasts hours, and a per-request limiter would
+  either close it or be meaningless. Buckets are per instance, which is exact while Flaglane runs
+  as a single instance and is a limitation to revisit with the multi-instance work.
 
 ### Reliability
 - **NFR-REL-001** Service unavailability degrades applications to last-known-good, then to
@@ -305,3 +328,9 @@ Corrections to this document, recorded rather than silently edited.
 | E-025 | FR-AUD-003 | Pagination is keyset on `(created_at desc, id desc)`. | Pagination was unspecified; offset against a descending-time index repeats and skips rows while new entries arrive. |
 | E-026 | NFR-PER-004 | Defines the evaluation path as the whole served `/sdk/**` request, and states how authentication and `last_used_at` stay off it. | "Zero database queries per request" was contradicted by key authentication and the last-used write, both of which happen on every serving request. |
 | E-027 | NFR-REL-003 | Liveness ignores the database; readiness requires the ruleset cache only; database health gates nothing. | A single health endpoint reporting the database means an outage has the orchestrator evict or restart the instance, taking the serving path down at precisely the moment NFR-REL-001 exists to survive. |
+| E-028 | FR-ACC-002 | Sign-in returns one 8-hour access token. The refresh token and `POST /api/auth/refresh` are removed from v0.x. | No refresh token table existed and nothing stated whether the token was stateless or persisted. Stateless, sign-out clears the browser while the refresh token stays valid to expiry, so the one action a user takes when they suspect compromise does nothing. |
+| E-029 | FR-UI-001 | Sign-out is discarding the token client-side, and says so. | Follows E-028. FR-UI-001 required sign-out that the rest of the specification could not deliver. |
+| E-030 | FR-KEY-002 | Specifies key entropy (32 bytes from a CSPRNG), encoding and the `flg_srv_` / `flg_cli_` format. | ADR-007's choice of SHA-256 over bcrypt is correct only because keys are high-entropy random values, and nothing said they were. `api_keys.key_prefix` also existed as a column with no defined format behind it. |
+| E-031 | FR-KEY-008 | Added: client rulesets carry no user overrides, and overrides do not apply to client keys on either serving path. | `user_overrides.user_key` holds real user identifiers and the documented ruleset shape shipped them verbatim. FR-KEY-005 filtered by flag only, so marking one flag client-visible published the list of specific users being targeted to every browser. Suite 6 asserted only that hidden *flags* were absent. |
+| E-032 | NFR-SEC-002 | Extended to cover override user keys, not just flag visibility. | Same as E-031: the requirement constrained which flags appear, not which identifiers. |
+| E-033 | NFR-SEC-005 | Specifies the algorithm, the default limit, the 429 behaviour, and that `/sdk/stream` is counted at connection rather than per event. | The requirement named no algorithm, limit, storage or dependency, yet a roadmap slice scheduled it. It also interacts badly with a stream, which is one request lasting hours. |

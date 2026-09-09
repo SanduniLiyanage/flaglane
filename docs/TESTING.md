@@ -58,13 +58,22 @@ implementations agree where the two languages would naturally disagree.
 
 ### 5. Tenant isolation — NFR-SEC-004
 For every tenant-scoped endpoint, authenticate as project A and attempt to read and mutate
-project B. Assert 404 in all cases. Written as a parameterised test over the endpoint list, so a
-new endpoint added without isolation fails the build.
+project B. Assert 404 in all cases.
+
+The endpoint list is **enumerated at runtime** from Spring's `RequestMappingHandlerMapping`, not
+maintained by hand. Every `/api/**` mapping must appear either in the tenant-scoped set or in an
+explicit, reviewed exclusion list, and anything unclassified fails the build. A parameterised test
+over a hand-written list proves things only about the endpoints someone remembered to add, which
+is exactly the endpoint this suite exists to catch.
 
 ### 6. Client key exposure — FR-KEY-005
 An environment holding both visible and non-visible flags. Assert a client key's `/sdk/config`
 contains only the visible ones, and that no rule, override or value from a hidden flag appears
-anywhere in the payload. Assert that a client key's ETag does not validate a server key's request:
+anywhere in the payload. Assert that **no user key from any override, on any flag, visible or
+not, appears anywhere in a client key's payload** — search the serialised response for each
+override user key in the fixture, not just the parsed `overrides` field, so a future field that
+carries one is caught too (FR-KEY-008). Assert that a client key's ETag does not validate a server
+key's request:
 issue both keys, take the client key's ETag, send it as `If-None-Match` on a server-key request,
 and assert 200 with the full body rather than 304. Assert the response carries
 `Cache-Control: private, no-store` and `Vary: Authorization`.

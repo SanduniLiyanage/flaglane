@@ -118,7 +118,14 @@ creation.
 display. No reversible secret sits in the database.
 
 **Rejected.** Encrypted at rest — introduces a key-management problem to solve a problem that
-does not exist, since Flaglane never needs to read the key back.
+does not exist, since Flaglane never needs to read the key back. bcrypt or Argon2 — the right
+tools for a secret a human chose, and unnecessary cost per request for one this service generated.
+
+**Amended.** That last argument was the load-bearing premise and was left unstated: SHA-256 is
+correct here *only because* keys are high-entropy random values. A key is 32 bytes from a CSPRNG,
+so brute force is not on the table and a slow hash buys nothing but latency on every SDK request.
+The format that makes this true is now specified in `docs/DATABASE.md` rather than left to the
+implementation to get right by accident.
 
 ---
 
@@ -203,3 +210,27 @@ in the ruleset and the database.
 **Rejected.** Keeping `% 100` and widening later — a one-line change today, an unmigratable one
 after the first production rollout. Storing a decimal percentage — floats in a value that decides
 who sees a feature, compared with `<` across two languages' rounding.
+
+---
+
+## ADR-012 — No refresh tokens in v0.x
+
+**Context.** Sign-in issued an access token and a refresh token, and `POST /api/auth/refresh`
+exchanged one for the other. Nothing said whether refresh tokens were stateless JWTs or persisted
+rows, and no table existed for them. If they are stateless, signing out clears the browser and
+leaves the refresh token valid until expiry, so a stolen token survives the one action a user takes
+when they think they have been compromised.
+
+**Decision.** One access token, a JWT valid for 8 hours. No refresh token, no refresh endpoint.
+Sign-out discards the token client-side.
+
+**Consequences.** Sign-out does not invalidate anything server-side, and this is written down in
+`SECURITY.md` and in FR-UI-001 instead of being implied by an endpoint that appears to do more than
+it does. Users sign in once a working day. There is no revocation for a stolen token inside its
+lifetime, which is the honest cost of not building the table.
+
+**Rejected.** A `refresh_tokens` table, hashed, with `revoked_at` — the correct answer, and it is
+what v0.2 should build; it needs a requirement, a schema row, a rotation policy and a reuse-
+detection rule, and half of that shipped is worse than none. Stateless refresh tokens with a short
+lifetime — the same exposure as a long access token, with an endpoint that implies revocation
+exists.

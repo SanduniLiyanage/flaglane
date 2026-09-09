@@ -36,7 +36,9 @@ memory, and receives updates over a stream. Consequences:
 - Evaluation is a hash and a few comparisons — microseconds, no I/O.
 - Flaglane can be down and applications keep working on the last ruleset.
 - The rules are visible to the client, so a client key must only receive client-visible flags
-  (FR-KEY-005).
+  (FR-KEY-005) and no user overrides at all (FR-KEY-008). Filtering by flag is not enough: an
+  override's user key is a real user identifier, and shipping the override list tells every
+  browser which specific people you have been targeting.
 - Changes are not instant by default, so a push channel is required (FR-STR-001).
 
 `POST /sdk/evaluate` exists for thin clients that cannot hold a ruleset, and runs the identical

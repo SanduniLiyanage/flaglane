@@ -37,11 +37,31 @@ Out of scope:
 - Findings that require an attacker who already holds a valid API key for the environment they are
   reading. The full ruleset for an environment is served to any valid key by design; that is what
   in-process evaluation means.
+- Dashboard sign-out not invalidating an already-issued access token. See the limitation below;
+  this is a known and documented property of v0.x, not a finding.
 - Bucketing being predictable. Bucket assignment is a plain MurmurHash3 of the flag key and user
   key, and is not a security boundary. See ADR-003 in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 - Misconfiguration of a self-hosted deployment, such as an exposed database port or a default
   credential left in place.
 - Reports from automated scanners with no demonstrated impact.
+
+## Known limitations in v0.x
+
+Stated here because a limitation you can read is worth more than one you discover.
+
+- **No server-side session invalidation.** Sign-in issues one JWT access token valid for 8 hours.
+  There is no refresh token and no revocation list, so signing out discards the token in the
+  browser and nothing more: a token already stolen stays valid until it expires. The fix is a
+  persisted, hashed refresh token with a `revoked_at` column, and it is deliberately not in v0.x
+  rather than half-built — a refresh token that cannot be revoked is a longer-lived credential
+  wearing the word "refresh" (ADR-012). Deploy behind TLS and keep the token in memory rather
+  than `localStorage`.
+- **Client keys never receive user overrides.** Override user keys are real user identifiers, so
+  they are omitted from client rulesets entirely rather than obscured. The consequence is that
+  user overrides do not apply to client-side evaluation at all (FR-KEY-008). Target specific
+  users client-side with a targeting rule on an attribute your application already sends.
+- **API keys are bearer credentials with no scoping beyond environment and type.** A key reads
+  everything its type entitles it to in its environment. There is no per-flag key.
 
 ## Deployment notes
 
