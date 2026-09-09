@@ -41,6 +41,7 @@ specified in code. Flaglane being down must never take your application down.
 
 - Boolean flags with per-environment configuration
 - Explicit user targeting, attribute-based targeting rules, and percentage rollouts
+- Rollouts are monotone: raising a percentage never takes the feature away from a user who has it
 - Consistent bucketing: a user's assignment is stable across servers, restarts and redeploys
 - Kill switch: one click disables a flag everywhere
 - In-process evaluation (fast) and remote evaluation (for thin clients)
@@ -55,6 +56,9 @@ Flaglane is a flag engine, not an experimentation platform. It does not include:
 
 - A/B test statistics or experiment analysis
 - Multivariate flags (booleans only in v0.x)
+- Regular-expression targeting. Neither Java nor JavaScript can put a timeout on a regex match,
+  so a bad pattern would stall the thread evaluating it — which, with in-process evaluation, is
+  your thread, not ours. `CONTAINS`, `STARTS_WITH` and `ENDS_WITH` are supported instead
 - Role-based access control, SSO, or approval workflows
 - Scheduled flag changes
 - SDKs beyond TypeScript

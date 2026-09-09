@@ -57,23 +57,39 @@ TypeScript SDK to reimplement identically.
 
 ### Resolution order (FR-EVL-001)
 
-1. **Kill switch.** Configuration disabled → `defaultValue`. Nothing else is consulted.
+1. **Kill switch.** Configuration disabled → `offValue`. Nothing else is consulted.
 2. **User override.** Exact match on user key → its value.
 3. **Targeting rules.** Priority ascending, first match wins → its result value.
-4. **Percentage rollout.** `bucket < rolloutPercentage` → `true`.
-5. **Default.** `defaultValue`.
+4. **Percentage rollout.** `bucket < rolloutBasisPoints` → `true`.
+5. **Fallthrough.** `fallthroughValue`.
 
 Order matters and is not arbitrary. Overrides sit above rules so an engineer can put themselves
 in a feature that is at 0%. The kill switch sits above everything so the 2am rollback needs no
 reasoning about rules.
 
-### Bucketing (FR-EVL-002 to FR-EVL-004)
+`offValue` and `fallthroughValue` are two different things and were one field until ADR-009. The
+value a disabled flag returns is fixed `false` and not editable; the value an enabled flag returns
+when nothing matched is editable. Collapsing them made the kill switch conditional on a setting,
+which is the one control that has to be unconditional.
+
+### Bucketing (FR-EVL-002 to FR-EVL-008)
 
 ```
-bucket = murmur3_32(flagKey + ":" + userKey, seed = 0) unsigned % 100
+bucket = murmur3_32_x86(utf8(rolloutSalt + ":" + userKey), seed = 0) unsigned % 10000
 ```
 
-Three properties matter:
+`rolloutSalt` defaults to the flag key at creation (ADR-010), and the modulus is 10000 rather than
+100 so a rollout is expressed in basis points (ADR-011). The dashboard still shows and accepts
+integer percentages; it multiplies by 100 on the way in.
+
+The variant, the encoding and the unsigned conversion are all specified in FR-EVL-002 rather than
+left to each implementation. They look pedantic and they are the exact points at which a Java
+implementation and a TypeScript one silently disagree. MurmurHash3 x86_32 is about forty lines and
+is implemented inside `evaluation/` rather than pulled in as a dependency; if Guava ever arrives
+for another reason, `Hashing.murmur3_32_fixed()` is the correct constructor and the deprecated
+`murmur3_32()` is not — it mishandles non-ASCII input.
+
+Four properties matter:
 
 **Deterministic.** The same user must get the same answer on every server, after every restart,
 for the life of the flag. If it changed, a user would watch the interface flicker between two
@@ -84,10 +100,17 @@ identity, or wall-clock time.
 across the 0–99 range for realistic user key distributions, and this is asserted by test, not
 assumed.
 
-**Independent per flag.** The flag key is part of the hash input. Without it, every user would
-carry one fixed bucket across all flags, so the same 30% of users would be the guinea pigs for
-every rollout in the system, and correlated failures would look like a single broken cohort.
-With it, two flags at 30% overlap at roughly 9%, as independent selection implies.
+**Independent per flag.** The salt is part of the hash input and defaults to the flag key. Without
+it, every user would carry one fixed bucket across all flags, so the same 30% of users would be
+the guinea pigs for every rollout in the system, and correlated failures would look like a single
+broken cohort. With it, two flags at 30% overlap at roughly 9%, as independent selection implies.
+Two flags given the same salt deliberately select the same cohort, which is how a feature spanning
+a backend flag and a frontend flag rolls out to one consistent population.
+
+**Monotone.** Raising a rollout never takes the flag away from someone who already had it, because
+`bucket` does not depend on the percentage and the comparison is `<`. This is why increasing a
+rollout is a safe operation rather than a reshuffle, and it is asserted by test (FR-EVL-008), not
+assumed.
 
 MurmurHash3 rather than SHA-256: it is not a security boundary, nobody gains anything by
 predicting their own bucket, and it is several times faster on the hot path (ADR-003).
@@ -134,10 +157,10 @@ Isolation is structural:
 
 | Failure | Behaviour |
 | --- | --- |
-| Malformed rule | Skipped, warning logged, evaluation continues |
-| Unknown flag key | Caller's fallback returned |
-| Missing user key | Rules and rollout skipped, default returned |
-| Engine exception | Default returned, warning logged, never propagated |
+| Malformed rule | Skipped, warning logged (rate limited), evaluation continues |
+| Unknown flag key | Caller's fallback returned, with reason `FLAG_NOT_FOUND`. Never a 404 |
+| Missing user key | Overrides and rollout skipped, rules still evaluated, then `fallthroughValue` |
+| Engine exception | `fallthroughValue` returned, warning logged, never propagated |
 | Database down | Serving continues from cache; management API returns 503 |
 | Flaglane unreachable from SDK | Last known ruleset, then code-level fallback |
 | Stream dropped | Backoff reconnect with jitter, polling meanwhile |

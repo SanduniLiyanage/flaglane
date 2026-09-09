@@ -54,6 +54,11 @@ not a security boundary.
 `userKey` alone without the flag key — would give each user one fixed bucket for every flag in the
 system, so the same cohort would be the test population for every rollout forever.
 
+**Amended by ADR-010 and ADR-011.** The decision to include the flag key stands and the reasoning
+above is unchanged. ADR-010 replaces the literal flag key in the hash input with a salt that
+defaults to it; ADR-011 replaces `% 100` with `% 10000`. Both are recorded separately rather than
+edited into this entry, because what changed is worth reading on its own.
+
 ---
 
 ## ADR-004 — Server-Sent Events for change propagation
@@ -131,3 +136,70 @@ per write than a targeted update, which is irrelevant at hundreds of flags and h
 **Rejected.** Per-flag invalidation — faster on paper, and the source of a whole class of bugs
 where the cache and database disagree. If write volume ever justifies it, that reversal gets its
 own entry here, with the measurement that motivated it.
+
+---
+
+## ADR-009 — `offValue` and `fallthroughValue` are different fields
+
+**Context.** A configuration had one `defaultValue`, returned both when the flag was disabled and
+when an enabled flag matched nothing. `defaultValue` is editable from the dashboard.
+
+**Decision.** Split it. A disabled configuration returns `offValue`. An enabled configuration that
+matches no override, no rule and no rollout returns `fallthroughValue`. `offValue` is fixed `false`
+in v0.x and is not exposed for editing; the column exists so that making it configurable later is a
+value change rather than a migration.
+
+**Consequences.** The kill switch is unconditional: disabling a flag can only ever turn a feature
+off, whatever else is configured. The rollout step stops being incoherent — `bucket < rollout →
+true` means something now that the fallthrough can be `false` independently. One extra column, one
+extra field on the wire, and a dashboard that has to explain that a `true` fallthrough makes the
+rollout inert.
+
+**Rejected.** Keeping one field and forbidding `defaultValue: true` — the same restriction with no
+way to express "on for everyone", and it would have to be enforced in service code rather than by
+the shape of the data. Making `offValue` editable in v0.x — reintroduces the original failure for
+anyone who sets it, in exchange for a capability nobody asked for.
+
+---
+
+## ADR-010 — The rollout salt is configurable, defaulted to the flag key
+
+**Context.** ADR-003 puts the flag key in the hash input so two flags at the same percentage select
+different populations. That is right, and it forecloses the opposite requirement: a feature that
+spans a backend flag, a frontend flag and a migration flag needs all three to select the *same*
+users, or the difference between the cohorts ships as an inconsistent experience.
+
+**Decision.** Hash `rolloutSalt + ":" + userKey`, where `rolloutSalt` is a column on
+`flag_configs` defaulted to the flag key at creation.
+
+**Consequences.** Identical behaviour on day one; suite 3 asserts the same result. Coordinated
+rollout becomes a field in the dashboard instead of a change nobody can safely make. Changing a
+salt re-buckets every user of that flag, so the endpoint and the UI say so explicitly. The parity
+suite gains a fixture with two flags sharing a salt.
+
+**Rejected.** Doing this later — changing the hash input reshuffles every user's bucket on every
+flag, which is precisely the interface flicker FR-EVL-003 exists to prevent. There is no safe
+migration, so this is a decision that can only be taken before the first flag exists. A separate
+`cohortKey` field alongside the flag key — two concepts where one salted string does the work.
+
+---
+
+## ADR-011 — Buckets are basis points; the interface stays in whole percentages
+
+**Context.** `% 100` fixes rollout granularity at one percent. A 0.1% canary on a risky change is
+ordinary practice and would be inexpressible. Moving to `% 10000` later reshuffles every user, for
+the same reason as ADR-010.
+
+**Decision.** `bucket` is 0–9999. `flag_configs.rollout_basis_points` is an integer 0–10000. The
+management API and the dashboard accept and display an integer percentage 0–100 and multiply by
+100 on the way in. The ruleset served to SDKs carries basis points, so the SDK never converts.
+
+**Consequences.** Sub-percent rollouts are available whenever the UI decides to expose them,
+without touching bucketing. CLAUDE.md's rule that percentages are integers holds on both sides of
+the conversion — there is no float anywhere in the path. Two units exist in the system, so every
+field name says which one it is: `rolloutPercentage` on the management API, `rolloutBasisPoints`
+in the ruleset and the database.
+
+**Rejected.** Keeping `% 100` and widening later — a one-line change today, an unmigratable one
+after the first production rollout. Storing a decimal percentage — floats in a value that decides
+who sees a feature, compared with `<` across two languages' rounding.

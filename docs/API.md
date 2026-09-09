@@ -48,12 +48,18 @@ Auth: `Authorization: Bearer <jwt>`.
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/api/.../flags/{flagKey}/config/{envKey}` | |
-| PATCH | `/api/.../flags/{flagKey}/config/{envKey}` | Kill switch, default, rollout |
+| PATCH | `/api/.../flags/{flagKey}/config/{envKey}` | Kill switch, fallthrough value, rollout percentage, rollout salt |
 | PUT | `/api/.../config/{envKey}/rules` | Replaces the ordered rule list atomically (FR-RUL-004) |
 | PUT | `/api/.../config/{envKey}/overrides` | Replaces the override set |
 
 Rules are replaced as a whole list rather than patched individually. Partial rule edits produce
 transient invalid orderings that could be served to production for milliseconds.
+
+`PATCH .../config/{envKey}` accepts `rolloutPercentage` as an integer 0–100 and stores it as basis
+points (ADR-011). It does not accept `offValue`: a disabled flag returns `false` in v0.x and that
+is not configurable, because the kill switch has to be unconditional (ADR-009). It accepts
+`rolloutSalt`, which defaults to the flag key; changing it re-buckets every user of that flag, and
+the endpoint says so in its OpenAPI description.
 
 ### Audit
 | Method | Path | Purpose |
@@ -83,17 +89,58 @@ a security boundary, not a filter for convenience: the response reaches browsers
     {
       "key": "new-checkout",
       "enabled": true,
-      "defaultValue": false,
-      "rolloutPercentage": 30,
+      "offValue": false,
+      "fallthroughValue": false,
+      "rolloutBasisPoints": 3000,
+      "rolloutSalt": "new-checkout",
       "overrides": [{ "userKey": "u-1042", "value": true }],
       "rules": [
         { "priority": 0, "attribute": "country", "operator": "IN",
-          "values": ["LK"], "resultValue": true }
+          "matchValues": ["LK"], "resultValue": true }
       ]
     }
   ]
 }
 ```
+
+The ruleset carries basis points, not percentages: the SDK compares `bucket < rolloutBasisPoints`
+and never has to reason about units. `offValue` is always `false` in v0.x and is carried anyway, so
+that making it configurable later is a value change rather than a wire-format change.
+
+### `POST /sdk/evaluate`
+
+For clients that cannot hold a ruleset. It runs the same engine server-side, so it answers exactly
+as an in-process evaluation would.
+
+```json
+{
+  "context": { "key": "u-1042", "attributes": { "country": "LK", "plan": "pro" } },
+  "flags": [
+    { "key": "new-checkout", "fallback": false },
+    { "key": "spelled-wrong", "fallback": true }
+  ]
+}
+```
+
+```json
+{
+  "environment": "production",
+  "version": 412,
+  "results": {
+    "new-checkout":   { "value": true,  "reason": "RULE_MATCH" },
+    "spelled-wrong":  { "value": true,  "reason": "FLAG_NOT_FOUND" }
+  }
+}
+```
+
+`context.key` is optional; omitting it skips overrides and rollout but still evaluates rules
+(FR-EVL-005). `fallback` is required per flag — it is the value the caller has decided is safe,
+and it is what an unknown flag, an unreadable flag or an internal error resolves to.
+
+`reason` is one of `OFF`, `OVERRIDE`, `RULE_MATCH`, `ROLLOUT`, `FALLTHROUGH`, `FLAG_NOT_FOUND`,
+`ERROR`. An unknown flag is **200 with the caller's fallback**, never 404 (FR-EVL-007): a thin
+client must not get an HTTP error where a thick client gets its fallback. A flag that exists but
+is not readable by this key reports `FLAG_NOT_FOUND` too, so the response does not disclose it.
 
 ### Stream
 
@@ -116,6 +163,9 @@ be diagnosable:
 | Status | Meaning |
 | --- | --- |
 | 401 | Missing, malformed, or revoked key |
-| 404 | Unknown flag in `POST /sdk/evaluate` |
+| 400 | Malformed request body on `POST /sdk/evaluate` |
 | 429 | Rate limit exceeded, with `Retry-After` |
 | 503 | Cache not ready; SDK retries with backoff |
+
+There is deliberately no 404 for an unknown flag. 404 on `/sdk/**` means a path that does not
+exist, nothing more.
