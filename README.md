@@ -81,7 +81,9 @@ cp .env.example .env    # then set the three passwords in it
 docker compose up --build
 ```
 
-The API is on `http://localhost:8080`; `http://localhost:8080/actuator/health` reports its status.
+The API is on `http://localhost:8080`, Swagger UI on `http://localhost:8080/swagger-ui.html`, and
+`http://localhost:8080/actuator/health` reports its status. The OpenAPI document behind the UI is
+at `/v3/api-docs` and is generated from the source, so it cannot drift from the endpoints.
 Nothing else is installed on the host. The stack runs PostgreSQL with two database roles — one
 that owns the schema and runs migrations, one the application runs as with no DDL privileges —
 and the API never sees the superuser.

@@ -10,6 +10,7 @@ Status is updated as slices merge. Anything not listed here is not in v0.1.
 | 1.2 Schema | `V1__baseline.sql` done. `V2__roles.sql` and `V3__audit_append_only.sql` are outstanding and follow slice 1.3; see ADR-016 for what V2 now contains |
 | 1.3 Docker Compose | Done. The API image carries no HTTP client, so the `api` service has no Compose healthcheck yet |
 | 1.4 GitHub Actions | Done for format, analysis, tests and image build. The coverage gate is added in slice 2.1, when `evaluation/` exists to measure |
+| 1.5 springdoc-openapi | Done. `/v3/api-docs` and Swagger UI are served; the document has no paths until slice 1.6 adds the first endpoint |
 | Everything else | Not started |
 
 ## Principles

@@ -24,6 +24,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `/actuator/health/liveness` and `/actuator/health/readiness` never depend on it.
 - GitHub Actions workflow on pushes to `main` and pull requests targeting it: formatting,
   SpotBugs, the test suite against PostgreSQL in Testcontainers, and the Docker image build.
+- OpenAPI document at `/v3/api-docs`, generated from source by springdoc-openapi, with Swagger UI
+  at `/swagger-ui.html`.
 
 ### Changed
 
