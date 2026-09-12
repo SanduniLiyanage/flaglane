@@ -3,14 +3,12 @@ package io.github.sanduniliyanage.flaglane;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.output.MigrateResult;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -30,14 +28,16 @@ class MigrationTest {
           "user_overrides",
           "audit_entries");
 
-  @Container
-  private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16");
+  @Container private static final FlaglanePostgres POSTGRES = new FlaglanePostgres();
 
   @Test
-  void migrateAppliesBaselineSchemaAndIsIdempotent() throws Exception {
+  void migrateAppliesBaselineSchemaAsMigratorAndIsIdempotent() throws Exception {
     Flyway flyway =
         Flyway.configure()
-            .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
+            .dataSource(
+                POSTGRES.getJdbcUrl(),
+                FlaglanePostgres.MIGRATOR_USER,
+                FlaglanePostgres.MIGRATOR_PASSWORD)
             .load();
 
     MigrateResult firstRun = flyway.migrate();
@@ -46,9 +46,7 @@ class MigrationTest {
     MigrateResult secondRun = flyway.migrate();
     assertThat(secondRun.migrationsExecuted).isZero();
 
-    try (Connection connection =
-            DriverManager.getConnection(
-                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+    try (Connection connection = flyway.getConfiguration().getDataSource().getConnection();
         ResultSet resultSet =
             connection.getMetaData().getTables(null, "public", "%", new String[] {"TABLE"})) {
       List<String> actualTables = new ArrayList<>();

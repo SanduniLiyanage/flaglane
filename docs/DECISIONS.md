@@ -328,3 +328,38 @@ rather than delete it as dead code.
 **Rejected.** Error Prone — analysis-as-compiler-plugin makes every finding a compile failure, no
 separate report to triage. PMD — source-level only, and adding it later alongside SpotBugs remains
 open rather than foreclosed by this entry.
+
+---
+
+## ADR-016 — Database roles are provisioned by the environment, privileges by migrations
+
+**Context.** `docs/DATABASE.md` requires two roles: `flaglane_migrator`, which owns the schema and
+runs Flyway, and `flaglane_app`, which runs the application without DDL and without write access
+to `audit_entries`. The migration plan originally had `V2__roles.sql` create `flaglane_app`. A
+`CREATE ROLE ... LOGIN` needs a password, a migration is source, and source carries no secrets
+(CLAUDE.md). Creating the role without a password and letting the environment set one later
+splits the definition of one role across two places that must agree, and puts a role that
+cannot log in into every database the migration ever touches.
+
+**Decision.** The environment creates both roles and owns their passwords: Compose and the
+Testcontainers fixture through `docker/postgres/init-roles.sh`, a managed PostgreSQL through the
+provider's tooling. `flaglane_migrator` owns the database, which makes it the owner of the
+`public` schema through `pg_database_owner`. Migrations run as `flaglane_migrator` and grant
+privileges to `flaglane_app` by name; they never create a role and never carry a credential.
+The application receives the two credentials as environment variables with no defaults.
+
+**Consequences.** `V2__roles.sql` shrinks to grants and revokes. The role names are a fixed part
+of the schema contract, because the grants reference them; the passwords are not, and rotating
+one is an operational change with no migration. A fresh database that has not been provisioned
+fails at the first `GRANT` with the role named, which is the right place to fail. The fixture
+and the Compose stack share one script, so a change to the provisioning cannot leave the tests
+running under a different privilege split from the deployment. Until V2 lands, `flaglane_app`
+can connect and resolve names in `public` and nothing else, which is enough for the health
+endpoint and nothing more.
+
+**Rejected.** Roles created by migration with a placeholder password — a credential in source,
+even a placeholder, is the thing the rule exists to prevent, and the placeholder would be live
+in any database where nobody remembered to change it. One role for both migrations and the
+application — the owner of `audit_entries` can grant itself the privileges the revoke removed,
+which `docs/DATABASE.md` already rejects. Superuser for the application — same objection,
+stronger.

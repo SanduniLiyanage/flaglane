@@ -1,0 +1,10 @@
+# Keep the build context small and keep credentials out of every image layer.
+.git
+.gradle
+**/build
+**/node_modules
+.env
+.env.*
+!.env.example
+.idea
+.vscode

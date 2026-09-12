@@ -21,6 +21,10 @@ repositories {
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
+    // Provides the DataSource that Flyway migrates and the application queries. Becomes a
+    // transitive dependency of spring-boot-starter-data-jpa in slice 1.7; drop this line then.
+    implementation("org.springframework.boot:spring-boot-starter-jdbc")
     implementation("org.flywaydb:flyway-database-postgresql")
     runtimeOnly("org.postgresql:postgresql")
 
@@ -31,6 +35,12 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    // The Testcontainers fixture provisions the database roles with the same script Compose
+    // uses, so a change to one cannot silently leave the other behind.
+    systemProperty(
+        "flaglane.postgres.initScript",
+        rootDir.resolve("docker/postgres/init-roles.sh").absolutePath,
+    )
 }
 
 spotless {

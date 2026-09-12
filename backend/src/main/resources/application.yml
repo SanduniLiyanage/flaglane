@@ -1,3 +1,35 @@
 spring:
   application:
     name: flaglane
+
+  # Two identities against one database (ADR-016). The URL and role names are not secrets and
+  # default to the Compose stack; the passwords have no default, so an unset one fails startup
+  # with the variable name in the message rather than connecting as something unintended.
+  datasource:
+    # The running application. Holds no DDL privileges.
+    url: ${FLAGLANE_DB_URL:jdbc:postgresql://localhost:5432/flaglane}
+    username: ${FLAGLANE_DB_APP_USER:flaglane_app}
+    password: ${FLAGLANE_DB_APP_PASSWORD}
+  flyway:
+    # Startup migration only. Owns the schema. Shares the datasource URL above.
+    user: ${FLAGLANE_DB_MIGRATOR_USER:flaglane_migrator}
+    password: ${FLAGLANE_DB_MIGRATOR_PASSWORD}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      # Serve /actuator/health/liveness and /readiness outside Kubernetes as well.
+      probes:
+        enabled: true
+      # Component names and statuses (db: UP) without connection details.
+      show-components: always
+      group:
+        # NFR-REL-003: readiness never includes the database. A database outage must not have
+        # an orchestrator evict the instance while it can still serve from cache. Slice 2.7 adds
+        # the ruleset cache indicator here; it is the only thing readiness should depend on.
+        readiness:
+          include: readinessState
