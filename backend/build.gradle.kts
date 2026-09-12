@@ -60,6 +60,7 @@ spotless {
 spotbugs {
     ignoreFailures = false
     showStackTraces = false
+    excludeFilter = file("config/spotbugs/exclude.xml")
 }
 
 // io.spring.dependency-management applies the Spring Boot BOM to every configuration,
@@ -72,4 +73,10 @@ configurations.named("spotbugs") {
             because("SpotBugs requires a newer commons-lang3 than the Spring Boot BOM provides")
         }
     }
+}
+
+// Findings go to build/reports/spotbugs/<sourceSet>.txt, which CI uploads on failure. Without a
+// report the task fails with an exit code and nothing that says what it found.
+tasks.withType<com.github.spotbugs.snom.SpotBugsTask>().configureEach {
+    reports.create("text") { required = true }
 }
