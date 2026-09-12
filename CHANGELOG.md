@@ -13,4 +13,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   strategy, roadmap, decision log and workflow.
 - Repository scaffolding: licence, contribution guide, security policy.
 
+### Changed
+
+- Corrections from a specification review of the design documents, recorded as errata E-001 to
+  E-036 at the bottom of `docs/SRS.md`. The substantive ones: the kill switch is unconditional,
+  bucketing is specified precisely enough for two implementations to agree, client rulesets no
+  longer carry user identifiers, and the schedule is six weeks rather than four.
+
 Nothing is released yet. The first release will be v0.1.0.

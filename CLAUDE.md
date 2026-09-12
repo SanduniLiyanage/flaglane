@@ -8,9 +8,15 @@ before proceeding.
 
 1. `CLAUDE.md` (this file)
 2. `docs/ROADMAP.md` — what is done and what is next
-3. `docs/SRS.md` — requirement IDs
+3. `docs/SRS.md` — requirement IDs, and the errata table at the bottom
 4. `docs/ARCHITECTURE.md` — layering and algorithms
 5. `docs/DECISIONS.md` — why things are the way they are
+6. `docs/API.md` — the endpoint contract
+7. `docs/DATABASE.md` — schema, constraints and what they enforce
+8. `docs/TESTING.md` — the required suites
+9. `docs/WORKFLOW.md` — branches, commits, definition of done
+
+All nine, not the first five. `docs/BENCHMARKS.md` is a stub until there are numbers in it.
 
 ## Stack
 
@@ -27,6 +33,7 @@ before proceeding.
 | SDK | TypeScript, published to npm |
 | Tests | JUnit 5, Mockito, Testcontainers, AssertJ |
 | CI | GitHub Actions |
+| Static analysis | **Undecided.** SpotBugs, Error Prone and PMD are three dependencies with three failure modes. Choose one before roadmap slice 1.1 and record it as an ADR |
 
 Do not add a dependency without asking. Every dependency is a maintenance obligation.
 
@@ -38,6 +45,7 @@ backend/src/main/java/io/github/sanduniliyanage/flaglane/
   project/           projects and environments
   apikey/            key issuance, hashing, authentication
   flag/              flag definitions and per-environment configuration
+  account/           users, registration, sign-in, JWT issuance
   targeting/         rules, user overrides
   evaluation/        the engine — pure logic, no Spring, no database
   streaming/         SSE connections and change broadcast
@@ -74,8 +82,11 @@ Do not start a layer before the one beneath it has a passing test.
 
 ## Non-negotiables
 
-- **The evaluation path never throws to the caller.** A malformed rule, a missing flag, or an
-  internal error resolves to the flag's default value and logs a warning. Callers depend on this.
+- **The evaluation path never throws to the caller.** A malformed rule or an internal error
+  resolves to the flag's `fallthroughValue`; an unknown flag resolves to the caller-supplied
+  fallback. Both log a warning, rate limited. Callers depend on this.
+- **The kill switch is unconditional.** A disabled configuration returns `offValue`, which is
+  fixed `false` in v0.x and not editable. No setting may make disabling a flag turn a feature on.
 - **Flaglane being down must not break the applications using it.** Design every SDK behaviour
   around this.
 - **No N+1 queries on the evaluation path.** It serves from an in-memory snapshot, rebuilt on
@@ -87,7 +98,9 @@ Do not start a layer before the one beneath it has a passing test.
   never retrievable.
 - **Every mutation writes an audit entry in the same transaction** as the change.
 - **No secrets in source.** Configuration comes from environment variables. `.env` is gitignored.
-- **Money and percentages are integers.** Rollout percentage is `int` 0–100, never a float.
+- **Percentages are integers.** Rollout is stored as basis points, `int` 0–10000, and presented
+  and accepted at the API and in the dashboard as an integer percentage 0–100. Never a float,
+  on either side of the conversion.
 - **Time comes from an injected `Clock`**, never `Instant.now()` inline, so tests can control it.
 
 ## Testing

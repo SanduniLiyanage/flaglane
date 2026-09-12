@@ -18,8 +18,8 @@ Testcontainers support, and a large pool of developers who can read it.
 self-hosted tool. Accepted: `docker compose up` is still one command, and the ecosystem depth is
 worth more here than image size.
 
-**Rejected.** Go — smaller and faster to start, but a new language on a four-week schedule alongside
-an unfamiliar domain is two risks at once. Node — the SDK is TypeScript already, and running both
+**Rejected.** Go — smaller and faster to start, but a new language alongside an unfamiliar domain
+is two risks at once. Node — the SDK is TypeScript already, and running both
 sides in one language would have hidden parity bugs behind shared code rather than exposing them.
 
 ---
@@ -54,6 +54,11 @@ not a security boundary.
 `userKey` alone without the flag key — would give each user one fixed bucket for every flag in the
 system, so the same cohort would be the test population for every rollout forever.
 
+**Amended by ADR-010 and ADR-011.** The decision to include the flag key stands and the reasoning
+above is unchanged. ADR-010 replaces the literal flag key in the hash input with a salt that
+defaults to it; ADR-011 replaces `% 100` with `% 10000`. Both are recorded separately rather than
+edited into this entry, because what changed is worth reading on its own.
+
 ---
 
 ## ADR-004 — Server-Sent Events for change propagation
@@ -68,6 +73,19 @@ connection limit.
 
 **Rejected.** WebSockets — bidirectional, which this traffic is not, and more infrastructure
 friction for no gain. Polling alone — a 30-second worst case is unacceptable for a kill switch.
+
+**Amended, twice.**
+
+*Implementation.* Streams use `SseEmitter`, which releases the request thread. A blocking
+implementation would cap concurrent streams at Tomcat's ~200 threads, which is a connection ceiling
+nobody chose. The ceiling that is chosen: 500 concurrent streams per key and 1,000 per environment,
+configurable, refused with 429 above that (FR-STR-004). "A per-key connection limit" above named no
+number, and an unnumbered limit is not a limit.
+
+*The cut list.* If SSE is cut under time pressure, the fallback is 5-second polling, not the
+30-second polling this entry rejects. A 30-second worst case on a kill switch is unacceptable
+whether it arrives by design or by triage; five seconds is an accepted degradation, and it is
+recorded here so that the first thing on the cut list does not silently contradict a decision.
 
 ---
 
@@ -113,7 +131,14 @@ creation.
 display. No reversible secret sits in the database.
 
 **Rejected.** Encrypted at rest — introduces a key-management problem to solve a problem that
-does not exist, since Flaglane never needs to read the key back.
+does not exist, since Flaglane never needs to read the key back. bcrypt or Argon2 — the right
+tools for a secret a human chose, and unnecessary cost per request for one this service generated.
+
+**Amended.** That last argument was the load-bearing premise and was left unstated: SHA-256 is
+correct here *only because* keys are high-entropy random values. A key is 32 bytes from a CSPRNG,
+so brute force is not on the table and a slow hash buys nothing but latency on every SDK request.
+The format that makes this true is now specified in `docs/DATABASE.md` rather than left to the
+implementation to get right by accident.
 
 ---
 
@@ -131,3 +156,128 @@ per write than a targeted update, which is irrelevant at hundreds of flags and h
 **Rejected.** Per-flag invalidation — faster on paper, and the source of a whole class of bugs
 where the cache and database disagree. If write volume ever justifies it, that reversal gets its
 own entry here, with the measurement that motivated it.
+
+---
+
+## ADR-009 — `offValue` and `fallthroughValue` are different fields
+
+**Context.** A configuration had one `defaultValue`, returned both when the flag was disabled and
+when an enabled flag matched nothing. `defaultValue` is editable from the dashboard.
+
+**Decision.** Split it. A disabled configuration returns `offValue`. An enabled configuration that
+matches no override, no rule and no rollout returns `fallthroughValue`. `offValue` is fixed `false`
+in v0.x and is not exposed for editing; the column exists so that making it configurable later is a
+value change rather than a migration.
+
+**Consequences.** The kill switch is unconditional: disabling a flag can only ever turn a feature
+off, whatever else is configured. The rollout step stops being incoherent — `bucket < rollout →
+true` means something now that the fallthrough can be `false` independently. One extra column, one
+extra field on the wire, and a dashboard that has to explain that a `true` fallthrough makes the
+rollout inert.
+
+**Rejected.** Keeping one field and forbidding `defaultValue: true` — the same restriction with no
+way to express "on for everyone", and it would have to be enforced in service code rather than by
+the shape of the data. Making `offValue` editable in v0.x — reintroduces the original failure for
+anyone who sets it, in exchange for a capability nobody asked for.
+
+---
+
+## ADR-010 — The rollout salt is configurable, defaulted to the flag key
+
+**Context.** ADR-003 puts the flag key in the hash input so two flags at the same percentage select
+different populations. That is right, and it forecloses the opposite requirement: a feature that
+spans a backend flag, a frontend flag and a migration flag needs all three to select the *same*
+users, or the difference between the cohorts ships as an inconsistent experience.
+
+**Decision.** Hash `rolloutSalt + ":" + userKey`, where `rolloutSalt` is a column on
+`flag_configs` defaulted to the flag key at creation.
+
+**Consequences.** Identical behaviour on day one; suite 3 asserts the same result. Coordinated
+rollout becomes a field in the dashboard instead of a change nobody can safely make. Changing a
+salt re-buckets every user of that flag, so the endpoint and the UI say so explicitly. The parity
+suite gains a fixture with two flags sharing a salt.
+
+**Rejected.** Doing this later — changing the hash input reshuffles every user's bucket on every
+flag, which is precisely the interface flicker FR-EVL-003 exists to prevent. There is no safe
+migration, so this is a decision that can only be taken before the first flag exists. A separate
+`cohortKey` field alongside the flag key — two concepts where one salted string does the work.
+
+---
+
+## ADR-011 — Buckets are basis points; the interface stays in whole percentages
+
+**Context.** `% 100` fixes rollout granularity at one percent. A 0.1% canary on a risky change is
+ordinary practice and would be inexpressible. Moving to `% 10000` later reshuffles every user, for
+the same reason as ADR-010.
+
+**Decision.** `bucket` is 0–9999. `flag_configs.rollout_basis_points` is an integer 0–10000. The
+management API and the dashboard accept and display an integer percentage 0–100 and multiply by
+100 on the way in. The ruleset served to SDKs carries basis points, so the SDK never converts.
+
+**Consequences.** Sub-percent rollouts are available whenever the UI decides to expose them,
+without touching bucketing. CLAUDE.md's rule that percentages are integers holds on both sides of
+the conversion — there is no float anywhere in the path. Two units exist in the system, so every
+field name says which one it is: `rolloutPercentage` on the management API, `rolloutBasisPoints`
+in the ruleset and the database.
+
+**Rejected.** Keeping `% 100` and widening later — a one-line change today, an unmigratable one
+after the first production rollout. Storing a decimal percentage — floats in a value that decides
+who sees a feature, compared with `<` across two languages' rounding.
+
+---
+
+## ADR-012 — No refresh tokens in v0.x
+
+**Context.** Sign-in issued an access token and a refresh token, and `POST /api/auth/refresh`
+exchanged one for the other. Nothing said whether refresh tokens were stateless JWTs or persisted
+rows, and no table existed for them. If they are stateless, signing out clears the browser and
+leaves the refresh token valid until expiry, so a stolen token survives the one action a user takes
+when they think they have been compromised.
+
+**Decision.** One access token, a JWT valid for 8 hours. No refresh token, no refresh endpoint.
+Sign-out discards the token client-side.
+
+**Consequences.** Sign-out does not invalidate anything server-side, and this is written down in
+`SECURITY.md` and in FR-UI-001 instead of being implied by an endpoint that appears to do more than
+it does. Users sign in once a working day. There is no revocation for a stolen token inside its
+lifetime, which is the honest cost of not building the table.
+
+**Rejected.** A `refresh_tokens` table, hashed, with `revoked_at` — the correct answer, and it is
+what v0.2 should build; it needs a requirement, a schema row, a rotation policy and a reuse-
+detection rule, and half of that shipped is worse than none. Stateless refresh tokens with a short
+lifetime — the same exposure as a long access token, with an endpoint that implies revocation
+exists.
+
+---
+
+## ADR-013 — v0.x runs as a single instance
+
+**Context.** The ruleset cache is rebuilt in process on write (ADR-008), and the SSE registry holds
+open connections in process (ARCHITECTURE section 5). Run two instances behind a load balancer and
+a write on instance A never reaches instance B: B serves a stale cache until it restarts, and every
+SDK connected to B's stream never learns that anything changed. The kill switch does not kill for
+half the traffic, and NFR-PER-003 fails silently rather than loudly. Nothing in the documentation
+said so, while "self-hostable" is an invitation to scale it.
+
+**Decision.** v0.x runs as exactly one API instance. This is stated in the README, in
+`docs/ARCHITECTURE.md` and in the requirements it qualifies, rather than left to be discovered by
+whoever first sets `replicas: 2`.
+
+**Consequences.** No horizontal scaling and no rolling deploy without a propagation gap: during a
+restart, the new instance serves from a freshly built cache and the old one is gone, which is fine,
+but two overlapping instances are not. In exchange, every propagation guarantee in the
+specification is true as written for the deployment the product actually supports. Rate limiting
+buckets and the stream connection ceiling are per instance, which is exact under this constraint
+and approximate the moment it lifts.
+
+**The intended fix**, scheduled as slice 4.8: PostgreSQL `LISTEN`/`NOTIFY` on commit. The write
+transaction issues `NOTIFY ruleset_changed, '<environment id>'`; every instance listens, invalidates
+its cache for that environment and fans the change out to its own stream registry. No new
+dependency — the database is already there and already carries the transaction that has to be
+observed. It is roughly forty lines and it is not in v0.x only because it has not been built and
+tested, not because it is hard.
+
+**Rejected.** Saying nothing and hoping — the failure is silent, it looks exactly like a working
+system, and it fails hardest at the moment the kill switch is being used. Redis pub/sub — a second
+piece of infrastructure for every self-hoster, to do what the database can already do. Sticky
+sessions — does not help; the problem is the write, not the reader.
