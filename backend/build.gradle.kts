@@ -26,6 +26,8 @@ dependencies {
     // transitive dependency of spring-boot-starter-data-jpa in slice 1.7; drop this line then.
     implementation("org.springframework.boot:spring-boot-starter-jdbc")
     implementation("org.flywaydb:flyway-database-postgresql")
+    // Not in the Spring Boot BOM. The 2.x line targets Spring Boot 3; 3.x targets Spring Boot 4.
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17")
     runtimeOnly("org.postgresql:postgresql")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
