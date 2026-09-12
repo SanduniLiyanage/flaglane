@@ -65,6 +65,9 @@ A slice is done when all of these hold:
 - `./gradlew check` is green, including the coverage gate
 - OpenAPI reflects any new or changed endpoint
 - `docs/ROADMAP.md` status is updated
+- `docs/` reflects what was built: any document that describes something differently from how it
+  was implemented is updated in the same PR, with the change recorded in `docs/SRS.md` errata if it
+  touches a requirement
 - A decision with lasting consequences is recorded in `docs/DECISIONS.md`
 - No `TODO` remains without a linked issue
 
