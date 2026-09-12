@@ -214,7 +214,11 @@ So: a `BEFORE UPDATE OR DELETE` trigger on `audit_entries` that raises an except
 revokes. The trigger holds regardless of role, ownership or superuser status, which is what makes
 the suite 10 assertion meaningful.
 
-Two roles, in compose, in deployment and in the Testcontainers fixture:
+Two roles, in compose, in deployment and in the Testcontainers fixture. Roles and their passwords
+are provisioned by the environment — `docker/postgres/init-roles.sh` for Compose and the fixture,
+the hosting provider's tooling for a managed database — and never by a migration, because a
+migration is source and source carries no credentials (ADR-016). Migrations grant privileges to
+roles that already exist.
 
 | Role | Holds | Used by |
 | --- | --- | --- |
@@ -315,7 +319,7 @@ management API, the cache rebuild, and the key cache's own load.
 | Migration | Contents |
 | --- | --- |
 | `V1__baseline.sql` | All tables, constraints, triggers and indexes above |
-| `V2__roles.sql` | `flaglane_app` role, grants, and the revokes on `audit_entries` |
+| `V2__roles.sql` | Grants to `flaglane_app`, and the revokes on `audit_entries`. The role itself is provisioned by the environment before Flyway runs (ADR-016) |
 | `V3__audit_append_only.sql` | The `BEFORE UPDATE OR DELETE` trigger on `audit_entries` |
 
 Later migrations are added as features land. Every migration is reversible by a forward

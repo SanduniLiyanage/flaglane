@@ -12,6 +12,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Design documentation: requirements, architecture, database design, API contract, testing
   strategy, roadmap, decision log and workflow.
 - Repository scaffolding: licence, contribution guide, security policy.
+- Gradle multi-project build: Java 25, Spring Boot 3.5, Spotless, SpotBugs.
+- Flyway `V1__baseline.sql` with the full schema, verified against PostgreSQL 16 by
+  Testcontainers.
+- Docker Compose stack: PostgreSQL 16 and the API built from source, with all credentials taken
+  from `.env`.
+- Two database roles: `flaglane_migrator` owns the schema and runs Flyway at startup;
+  `flaglane_app` runs the application with no DDL privileges. Both are provisioned by the
+  environment, never by a migration.
+- Health endpoints: `/actuator/health` reports the database as a component;
+  `/actuator/health/liveness` and `/actuator/health/readiness` never depend on it.
 
 ### Changed
 
