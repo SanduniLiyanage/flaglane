@@ -1,0 +1,54 @@
+# Local stack: PostgreSQL 16 with the two database roles, and the API built from source.
+#
+# Copy .env.example to .env and set the three passwords first. Every credential below is
+# required (`:?`), so a missing one stops Compose with the variable named rather than starting
+# with a default nobody chose.
+#
+# The role provisioning script runs only when the data volume is first created. To change a
+# password afterwards, reset the volume: docker compose down -v
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: flaglane
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      # Read by docker/postgres/init-roles.sh; the application never uses the superuser.
+      FLAGLANE_DB_MIGRATOR_PASSWORD: ${FLAGLANE_DB_MIGRATOR_PASSWORD:?set FLAGLANE_DB_MIGRATOR_PASSWORD in .env}
+      FLAGLANE_DB_APP_PASSWORD: ${FLAGLANE_DB_APP_PASSWORD:?set FLAGLANE_DB_APP_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init-roles.sh:/docker-entrypoint-initdb.d/10-roles.sh:ro
+    ports:
+      # Loopback only: for ./gradlew bootRun and psql from the host, not for the network. The
+      # host port is overridable so the stack runs beside a PostgreSQL already on 5432.
+      - "127.0.0.1:${FLAGLANE_DB_PORT:-5432}:5432"
+    healthcheck:
+      # Over TCP rather than the socket, so the check stays red while the image's
+      # initialisation-only server is running the init scripts.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d flaglane"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      FLAGLANE_DB_URL: jdbc:postgresql://postgres:5432/flaglane
+      FLAGLANE_DB_MIGRATOR_USER: flaglane_migrator
+      FLAGLANE_DB_MIGRATOR_PASSWORD: ${FLAGLANE_DB_MIGRATOR_PASSWORD:?set FLAGLANE_DB_MIGRATOR_PASSWORD in .env}
+      FLAGLANE_DB_APP_USER: flaglane_app
+      FLAGLANE_DB_APP_PASSWORD: ${FLAGLANE_DB_APP_PASSWORD:?set FLAGLANE_DB_APP_PASSWORD in .env}
+    ports:
+      - "8080:8080"
+    # No healthcheck: the runtime image carries no HTTP client, and nothing in the stack waits
+    # on the API yet. If one is added, probe /actuator/health/readiness, never /actuator/health:
+    # the aggregate reports 503 during a database outage by design (NFR-REL-003).
+
+volumes:
+  postgres-data:
