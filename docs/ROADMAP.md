@@ -7,7 +7,7 @@ Status is updated as slices merge. Anything not listed here is not in v0.1.
 | Slice | State |
 | --- | --- |
 | 1.1 Build skeleton | Done |
-| 1.2 Schema | `V1__baseline.sql` done. `V2__roles.sql` and `V3__audit_append_only.sql` are outstanding and follow slice 1.3; see ADR-016 for what V2 now contains |
+| 1.2 Schema | Done. `V2__roles.sql` grants; the role itself is provisioned by the environment (ADR-016). `V3__audit_append_only.sql` landed with it, together with suite 10, because a trigger without its suite is not done — which completes slice 3.9 early |
 | 1.3 Docker Compose | Done. The API image carries no HTTP client, so the `api` service has no Compose healthcheck yet |
 | 1.4 GitHub Actions | Done for format, analysis, tests and image build. The coverage gate is added in slice 2.1, when `evaluation/` exists to measure |
 | 1.5 springdoc-openapi | Done. `/v3/api-docs` and Swagger UI are served; the document has no paths until slice 1.6 adds the first endpoint |
@@ -38,9 +38,10 @@ by rounding slices down. It is covered in one of two ways, chosen when it become
 before:
 
 - the cut list below, or
-- the four slices marked ◇ moving to v0.2. They are chosen so that nothing on the *never cut*
-  list is at risk: `4.7` rate limiting, `4.8` multi-instance propagation, `3.9` database-level
-  audit enforcement, `4.10` the SSE propagation benchmark.
+- the slices marked ◇ moving to v0.2. They are chosen so that nothing on the *never cut* list
+  is at risk: `4.7` rate limiting, `4.8` multi-instance propagation, `4.10` the SSE propagation
+  benchmark. `3.9` database-level audit enforcement was one of them and has since landed with
+  slice 1.2.
 
 A four-week version of this plan existed and was not true. Milestone 1 alone — ten slices
 including JWT authentication and a public deployment with managed PostgreSQL — is two weeks, and
@@ -122,7 +123,7 @@ Goal: the rules are editable by a human.
 | 3.6 | Rule editor with reordering; override list | 1 | FR-UI-004 |
 | 3.7 | Key management, with a copy-once display | 0.5 | FR-UI-005 |
 | 3.8 | Audit trail view, keyset paginated | 0.5 | FR-UI-006 |
-| 3.9 ◇ | Database-level audit append-only enforcement; suite 10 | 1 | FR-AUD-002 |
+| 3.9 ◇ | Database-level audit append-only enforcement; suite 10. **Done early**, with `V3__audit_append_only.sql` in slice 1.2, and no longer a candidate for v0.2 | 1 | FR-AUD-002 |
 
 The rollout slider shows whole percentages and sends whole percentages (ADR-011). It is disabled,
 with a reason, when `fallthroughValue` is `true`, because the rollout is inert in that case

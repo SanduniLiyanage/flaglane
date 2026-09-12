@@ -20,8 +20,8 @@ psql -v ON_ERROR_STOP=1 \
 create role flaglane_migrator login password :'migrator_password';
 alter database :"database" owner to flaglane_migrator;
 
--- Runs the application. Table privileges are granted by migration (V2__roles.sql); until
--- that lands it can connect and resolve names in public, and nothing else.
+-- Runs the application. Table privileges are granted by migration (V2__roles.sql); this script
+-- only lets it connect and resolve names in public.
 create role flaglane_app login password :'app_password';
 grant connect on database :"database" to flaglane_app;
 grant usage on schema public to flaglane_app;
