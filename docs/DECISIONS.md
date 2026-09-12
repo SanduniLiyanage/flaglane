@@ -301,3 +301,30 @@ stack are unaffected. Toolchains, CI images and local setup instructions must sp
 
 **Rejected.** Editing ADR-001 in place — this log is append-only by its own stated rule; a decided
 entry is superseded by a new one, not rewritten.
+
+---
+
+## ADR-015 — SpotBugs for static analysis
+
+**Context.** Roadmap slice 1.1 named three candidates — SpotBugs, Error Prone and PMD — three
+dependencies with three failure modes, and CLAUDE.md requires a decision before adding one. Error
+Prone runs as a javac plugin and couples static analysis to the compiler itself, which makes a
+false positive a build-breaking compile error rather than a separate, reviewable report. PMD and
+SpotBugs both run as an independent Gradle task against compiled output, which keeps analysis out
+of the compiler's way.
+
+**Decision.** SpotBugs, via the `com.github.spotbugs` Gradle plugin, wired into `check`.
+
+**Consequences.** Bytecode-level analysis catches a class of bug PMD's source-level rules do not
+— null dereferences, resource leaks, and equality mistakes that survive to compiled output. The
+plugin's own tool classpath (configuration `spotbugs`, distinct from the project's dependencies)
+pulls a newer `commons-lang3` than the one `io.spring.dependency-management` forces onto every
+configuration by default, which breaks analysis with `NoClassDefFoundError: org/apache/commons/
+lang3/Strings` unless the `spotbugs` configuration's resolution is pinned back to the version
+SpotBugs actually needs. `backend/build.gradle.kts` does this explicitly, with a comment, so the
+next person who bumps SpotBugs's version knows why the override exists and needs to re-check it
+rather than delete it as dead code.
+
+**Rejected.** Error Prone — analysis-as-compiler-plugin makes every finding a compile failure, no
+separate report to triage. PMD — source-level only, and adding it later alongside SpotBugs remains
+open rather than foreclosed by this entry.
