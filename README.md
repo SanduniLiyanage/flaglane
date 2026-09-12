@@ -87,7 +87,7 @@ See [docs/](docs/) for architecture, API contract, database design and testing s
 
 ## Stack
 
-Java 21, Spring Boot 3, PostgreSQL, Flyway, React with TypeScript, Docker.
+Java 25, Spring Boot 3, PostgreSQL, Flyway, React with TypeScript, Docker.
 
 ## Licence
 

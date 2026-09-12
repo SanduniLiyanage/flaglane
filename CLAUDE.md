@@ -22,7 +22,7 @@ All nine, not the first five. `docs/BENCHMARKS.md` is a stub until there are num
 
 | Concern | Choice |
 | --- | --- |
-| Language | Java 21 |
+| Language | Java 25 |
 | Framework | Spring Boot 3.x |
 | Build | Gradle (Kotlin DSL) |
 | Database | PostgreSQL 16 |

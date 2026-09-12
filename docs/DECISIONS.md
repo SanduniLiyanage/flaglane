@@ -281,3 +281,23 @@ tested, not because it is hard.
 system, and it fails hardest at the moment the kill switch is being used. Redis pub/sub — a second
 piece of infrastructure for every self-hoster, to do what the database can already do. Sticky
 sessions — does not help; the problem is the write, not the reader.
+
+---
+
+## ADR-014 — Java 25 supersedes ADR-001's version choice
+
+**Context.** ADR-001 decided Java 21 before any machine was set up to build the project. At the
+start of implementation, the installed JDK is Java 25 — the LTS release available at that point.
+ADR-001's reasoning (a mature HTTP stack, a solid PostgreSQL story, first-class Testcontainers
+support, a large pool of developers who can read it) was about the language and ecosystem, not
+about which specific LTS number was current, and none of it depended on 21 rather than a later LTS.
+
+**Decision.** The backend targets Java 25. Everywhere CLAUDE.md, the roadmap and other documents
+name a Java version, it is 25. ADR-001 stands as the historical record of the decision to use Java
+and Spring Boot at all; this entry supersedes only its version number, not its reasoning.
+
+**Consequences.** None beyond the version string: Spring Boot 3.x, Gradle and the rest of ADR-001's
+stack are unaffected. Toolchains, CI images and local setup instructions must specify 25, not 21.
+
+**Rejected.** Editing ADR-001 in place — this log is append-only by its own stated rule; a decided
+entry is superseded by a new one, not rewritten.

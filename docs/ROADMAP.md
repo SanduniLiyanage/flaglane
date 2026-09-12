@@ -49,7 +49,7 @@ Goal: an empty but deployed, tested, documented service.
 
 | Slice | Contents | Days | Requirements |
 | --- | --- | --- | --- |
-| 1.1 | Gradle, Spring Boot 3, Java 21, package-by-feature, Spotless, static analysis | 1 | — |
+| 1.1 | Gradle, Spring Boot 3, Java 25, package-by-feature, Spotless, static analysis | 1 | — |
 | 1.2 | `V1__baseline.sql`, `V2__roles.sql`, `V3__audit_append_only.sql` per `docs/DATABASE.md` | 1 | FR-FLG-001, FR-PRJ-002, FR-AUD-002 |
 | 1.3 | Docker Compose: API and PostgreSQL, with the migrator and application roles separated | 0.5 | — |
 | 1.4 | GitHub Actions: format, analyse, test, coverage gate, image build | 1 | — |
