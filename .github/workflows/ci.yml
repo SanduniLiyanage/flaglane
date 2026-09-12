@@ -1,0 +1,58 @@
+# Continuous integration: the gates in docs/TESTING.md that exist so far.
+#
+# `check` runs spotlessCheck, SpotBugs and the tests. The tests run against a real
+# PostgreSQL through Testcontainers, which finds the runner's Docker daemon at its
+# default socket with no setup step. The coverage gate arrives with the evaluation/
+# package in slice 2.1 and the SDK gate with slice 4.2.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    name: Format, analyse, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: true
+
+      - run: ./gradlew check
+
+      - name: Upload build reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-reports
+          path: |
+            backend/build/reports/
+            backend/build/test-results/
+          if-no-files-found: ignore
+
+  image:
+    name: Build image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: docker build --file backend/Dockerfile --tag flaglane-api:${{ github.sha }} .

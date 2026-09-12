@@ -22,6 +22,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   environment, never by a migration.
 - Health endpoints: `/actuator/health` reports the database as a component;
   `/actuator/health/liveness` and `/actuator/health/readiness` never depend on it.
+- GitHub Actions workflow on pushes to `main` and pull requests targeting it: formatting,
+  SpotBugs, the test suite against PostgreSQL in Testcontainers, and the Docker image build.
 
 ### Changed
 

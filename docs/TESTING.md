@@ -131,6 +131,14 @@ are not evidence.
 5. SDK test failures or type errors
 6. A Docker image that does not build
 
+Gates 1, 2, 3 and 6 are live. Gate 4 is wired when the `evaluation/` package lands in slice
+2.1, and gate 5 when the SDK lands in slice 4.2; until then the workflow says so in its header
+comment rather than pretending to enforce a package that does not exist.
+
+Tests need Docker for Testcontainers. The `ubuntu-latest` runner ships with Docker Engine
+running and the runner user in the `docker` group, so Testcontainers finds the daemon at its
+default socket; the workflow has no service container and no Docker setup step.
+
 A red build is never merged and never "fixed later".
 
 ## Conventions
