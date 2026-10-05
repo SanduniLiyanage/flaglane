@@ -419,3 +419,18 @@ single-valued operator — reasonable, but adopting it later changes the meaning
 whereas retreating from it would; a wrongly typed attribute never matching any operator — it would
 make `NOT_EQUALS` mean something narrower than its name, in a way no reader of FR-RUL-007 would
 guess.
+
+---
+
+## ADR-020 — A malformed rule resolves the flag to its fallthrough value
+
+The documents disagreed. `docs/ARCHITECTURE.md` section 7 says a malformed rule is skipped and
+evaluation continues; CLAUDE.md, FR-EVL-006 and suite 7 say it resolves to `fallthroughValue`. The
+two give different answers whenever a later rule or the rollout would have matched. **Decision:**
+a malformed rule that evaluation reaches resolves the flag to its `fallthroughValue` with reason
+`ERROR`. Evaluation stops there; a rule that matched before it still wins, and an override or the
+kill switch never reaches it. **Consequences:** a broken rule can only ever produce the value the
+flag's owner chose as its resting state, never a value some later step happened to compute. Section
+7 of the architecture document is to be corrected to match. **Rejected:** skipping the rule — if the
+broken rule was the one excluding a group, say `country IN ["XX"] → false`, skipping it hands that
+group whatever the rollout gives them, which is exactly the population the rule existed to keep out.

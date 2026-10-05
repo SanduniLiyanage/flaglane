@@ -33,6 +33,28 @@ class ComparisonSemanticsTest {
     assertThat(outcome).as(row.name()).isEqualTo(row.expected());
   }
 
+  /**
+   * The same rows through the whole engine, as the SDK will run them: an enabled flag falling
+   * through to {@code false} whose only rule returns {@code true}.
+   */
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("cases")
+  void engineAnswersEachRowAsTheSharedFixtureSays(Case row) {
+    FlagConfig flag = FlagConfig.builder("flag").enabled(true).rule(row.rule()).build();
+    Ruleset ruleset = Ruleset.of("production", 1, List.of(flag));
+
+    Evaluation evaluation = new Evaluator().evaluate(ruleset, "flag", row.user(), false);
+
+    Evaluation expected =
+        switch (row.expected()) {
+          case "match" -> new Evaluation(true, Reason.RULE_MATCH);
+          case "no-match" -> new Evaluation(false, Reason.FALLTHROUGH);
+          case "malformed" -> new Evaluation(false, Reason.ERROR);
+          default -> throw new IllegalArgumentException("Unknown expectation " + row.expected());
+        };
+    assertThat(evaluation).as(row.name()).isEqualTo(expected);
+  }
+
   @Test
   void fixtureHasAnAbsentAttributeRowForEveryOperator() {
     Set<String> absent =
