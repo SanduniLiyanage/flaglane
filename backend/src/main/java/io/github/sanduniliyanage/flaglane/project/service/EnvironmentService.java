@@ -10,6 +10,7 @@ import io.github.sanduniliyanage.flaglane.common.tenancy.ProjectScope;
 import io.github.sanduniliyanage.flaglane.common.tenancy.TenantResolver;
 import io.github.sanduniliyanage.flaglane.project.domain.Environment;
 import io.github.sanduniliyanage.flaglane.project.domain.EnvironmentCreated;
+import io.github.sanduniliyanage.flaglane.project.domain.RulesetChanged;
 import io.github.sanduniliyanage.flaglane.project.persistence.EnvironmentEntity;
 import io.github.sanduniliyanage.flaglane.project.persistence.EnvironmentRepository;
 import java.time.Clock;
@@ -17,6 +18,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -34,6 +36,7 @@ public class EnvironmentService {
   private final EnvironmentRepository environments;
   private final TenantResolver tenants;
   private final ApplicationEventPublisher events;
+  private final RulesetVersions versions;
   private final AuditLog audit;
   private final Clock clock;
 
@@ -41,11 +44,13 @@ public class EnvironmentService {
       EnvironmentRepository environments,
       TenantResolver tenants,
       ApplicationEventPublisher events,
+      RulesetVersions versions,
       AuditLog audit,
       Clock clock) {
     this.environments = environments;
     this.tenants = tenants;
     this.events = events;
+    this.versions = versions;
     this.audit = audit;
     this.clock = clock;
   }
@@ -75,7 +80,9 @@ public class EnvironmentService {
     } catch (DataIntegrityViolationException e) {
       throw new ConflictException(KEY_TAKEN, e);
     }
-    events.publishEvent(new EnvironmentCreated(tenants.environment(project, key)));
+    EnvironmentScope created = tenants.environment(project, key);
+    events.publishEvent(new EnvironmentCreated(created));
+    versions.changed(created);
     audit.record(
         AuditEvent.of(AuditAction.ENVIRONMENT_CREATED, project.projectId(), project.userId())
             .environment(environment.id())
@@ -101,6 +108,7 @@ public class EnvironmentService {
             .environment(scope.environmentId())
             .previous(describe(environment)));
     environments.delete(scope);
+    events.publishEvent(new RulesetChanged(Set.of(scope.environmentId())));
   }
 
   private static Map<String, Object> describe(EnvironmentEntity environment) {

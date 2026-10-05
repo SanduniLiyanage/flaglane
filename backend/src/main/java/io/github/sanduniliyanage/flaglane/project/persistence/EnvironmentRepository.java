@@ -31,6 +31,21 @@ public interface EnvironmentRepository extends Repository<EnvironmentEntity, UUI
           + " and e.projectId = :#{#environment.projectId()}")
   Optional<EnvironmentEntity> find(@Param("environment") EnvironmentScope environment);
 
+  /** Marks one environment's ruleset as changed: the next ETag and stream event say so. */
+  @Modifying
+  @Query(
+      "update EnvironmentEntity e set e.rulesetVersion = e.rulesetVersion + 1"
+          + " where e.id = :#{#environment.environmentId()}"
+          + " and e.projectId = :#{#environment.projectId()}")
+  int bumpRulesetVersion(@Param("environment") EnvironmentScope environment);
+
+  /** Marks every environment of the project as changed, for a change to a flag itself. */
+  @Modifying
+  @Query(
+      "update EnvironmentEntity e set e.rulesetVersion = e.rulesetVersion + 1"
+          + " where e.projectId = :#{#project.projectId()}")
+  int bumpRulesetVersions(@Param("project") ProjectScope project);
+
   /** Keys not yet revoked; an environment holding one cannot be deleted (FR-ENV-003). */
   @Query(
       value =

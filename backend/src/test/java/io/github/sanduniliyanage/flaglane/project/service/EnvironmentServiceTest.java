@@ -19,12 +19,14 @@ import io.github.sanduniliyanage.flaglane.common.tenancy.ProjectScope;
 import io.github.sanduniliyanage.flaglane.common.tenancy.TenantResolver;
 import io.github.sanduniliyanage.flaglane.common.tenancy.TenantScopes;
 import io.github.sanduniliyanage.flaglane.project.domain.EnvironmentCreated;
+import io.github.sanduniliyanage.flaglane.project.domain.RulesetChanged;
 import io.github.sanduniliyanage.flaglane.project.persistence.EnvironmentEntity;
 import io.github.sanduniliyanage.flaglane.project.persistence.EnvironmentRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -40,9 +42,10 @@ class EnvironmentServiceTest {
   private final TenantResolver tenants = mock(TenantResolver.class);
   private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
   private final AuditLog audit = mock(AuditLog.class);
+  private final RulesetVersions versions = mock(RulesetVersions.class);
   private final EnvironmentService service =
       new EnvironmentService(
-          environments, tenants, events, audit, Clock.fixed(NOW, ZoneOffset.UTC));
+          environments, tenants, events, versions, audit, Clock.fixed(NOW, ZoneOffset.UTC));
 
   private final ProjectScope project =
       TenantScopes.project(UUID.randomUUID(), "storefront", UUID.randomUUID());
@@ -55,6 +58,27 @@ class EnvironmentServiceTest {
     service.create(project, "qa", "QA");
 
     verify(events).publishEvent(new EnvironmentCreated(qa));
+  }
+
+  @Test
+  void aNewEnvironmentIsANewRulesetToServe() {
+    when(tenants.environment(project, "qa")).thenReturn(qa);
+
+    service.create(project, "qa", "QA");
+
+    verify(versions).changed(qa);
+  }
+
+  @Test
+  void aDeletedEnvironmentIsARulesetToStopServing() {
+    when(environments.find(qa))
+        .thenReturn(
+            Optional.of(
+                new EnvironmentEntity(qa.environmentId(), project.projectId(), "qa", "QA", NOW)));
+
+    service.delete(qa);
+
+    verify(events).publishEvent(new RulesetChanged(Set.of(qa.environmentId())));
   }
 
   @Test
@@ -78,7 +102,7 @@ class EnvironmentServiceTest {
     assertThatExceptionOfType(ConflictException.class)
         .isThrownBy(() -> service.create(project, "qa", "QA"))
         .withMessage(EnvironmentService.KEY_TAKEN);
-    verifyNoInteractions(events, audit);
+    verifyNoInteractions(events, versions, audit);
   }
 
   @Test

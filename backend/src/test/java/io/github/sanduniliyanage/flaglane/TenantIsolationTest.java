@@ -2,6 +2,7 @@ package io.github.sanduniliyanage.flaglane;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -88,7 +89,12 @@ class TenantIsolationTest {
         api.read(api.post(bobsKeys(), bob, Map.of("name", "bob's key", "type", "server")))
             .path("id")
             .asText();
-    bobsChildren = Map.of("keyId", bobsKeyId);
+    String bobsFlagKey = ManagementApiClient.uniqueKey("bob-flag");
+    api.post(
+        "/api/projects/" + bobsProject + "/flags",
+        bob,
+        Map.of("key", bobsFlagKey, "name", "Bob's flag"));
+    bobsChildren = Map.of("keyId", bobsKeyId, "flagKey", bobsFlagKey);
   }
 
   @Test
@@ -185,6 +191,11 @@ class TenantIsolationTest {
         .containsExactlyInAnyOrder("development", "staging", "production", "bob-only");
     assertThat(api.read(api.get(bobsKeys(), bob)).get(0).path("revokedAt").isNull())
         .as("Bob's key is still live after Alice's attempts")
+        .isTrue();
+    JsonNode bobsFlags = api.read(api.get("/api/projects/" + bobsProject + "/flags", bob));
+    assertThat(bobsFlags.size()).as("Bob's flags after Alice's attempts").isEqualTo(1);
+    assertThat(bobsFlags.get(0).path("archivedAt").isNull())
+        .as("Bob's flag is still live after Alice's attempts")
         .isTrue();
   }
 

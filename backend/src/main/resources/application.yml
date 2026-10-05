@@ -29,6 +29,12 @@ spring:
     problemdetails:
       enabled: true
 
+  jackson:
+    deserialization:
+      # Jackson truncates 12.5 to 12 for an integer field by default. A rollout percentage is an
+      # integer on both sides of the API (CLAUDE.md, ADR-011): a fraction is refused, not rounded.
+      accept-float-as-int: false
+
 flaglane:
   security:
     jwt:

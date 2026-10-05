@@ -39,6 +39,15 @@ public class TenantResolver {
     return new ProjectScope(ids.getFirst(), projectKey, owner.userId());
   }
 
+  /** Every environment of the project, as scopes, in creation order. */
+  public List<EnvironmentScope> environments(ProjectScope project) {
+    return database.query(
+        "select id, key from environments where project_id = ? order by created_at, key",
+        (row, index) ->
+            new EnvironmentScope(project, row.getObject("id", UUID.class), row.getString("key")),
+        project.projectId());
+  }
+
   public EnvironmentScope environment(ProjectScope project, String environmentKey) {
     List<UUID> ids =
         database.queryForList(
