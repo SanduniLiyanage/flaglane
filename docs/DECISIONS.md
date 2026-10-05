@@ -494,3 +494,20 @@ towards a targeting rule on an attribute, which is what scales. **Rejected:** no
 ruleset is downloaded by every SDK, and an unbounded one is a denial of service by configuration;
 tighter limits now — raising a limit later breaks nothing, lowering one would invalidate stored
 configurations, so the starting point errs generous.
+
+---
+
+## ADR-024 — A `serving` package for the ruleset cache and the serving endpoints
+
+CLAUDE.md's module layout names `evaluation/` for the engine and `streaming/` for SSE, but nothing
+for the ruleset cache of `docs/ARCHITECTURE.md` section 4 or for `GET /sdk/config` and `POST
+/sdk/evaluate`. The cache reads every feature's tables and the endpoints read only the cache, so
+none of `flag/`, `targeting/` or `streaming/` is their natural owner, and `evaluation/` may import
+nothing. **Decision:** a `serving/` feature package, laid out like the others, holds the ruleset
+loader, the cache, its readiness indicator and the two serving endpoints; `streaming/` will read
+the same cache when it arrives. **Consequences:** the read side of the system — everything an SDK
+touches — is in one place, separate from the write side it is built from, which is the separation
+ADR-006 and NFR-PER-004 already describe. **Rejected:** folding the cache into `flag/` — it would
+make the flag package depend on targeting and keys, and put the hot path inside a write-side
+package; folding it into `streaming/` — serving must work with streaming cut (the roadmap's first
+cut), so it cannot live in the package that cut would remove.

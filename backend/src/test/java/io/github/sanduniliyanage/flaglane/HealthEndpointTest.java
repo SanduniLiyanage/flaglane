@@ -50,4 +50,13 @@ class HealthEndpointTest {
     assertThat(body.path("status").asText()).isEqualTo("UP");
     assertThat(body.path("components").has("db")).isFalse();
   }
+
+  @Test
+  void readinessDependsOnTheRulesetCache() throws Exception {
+    JsonNode body =
+        json.readTree(http.getForEntity("/actuator/health/readiness", String.class).getBody());
+
+    assertThat(body.path("components").path("rulesetCache").path("status").asText())
+        .isEqualTo("UP");
+  }
 }

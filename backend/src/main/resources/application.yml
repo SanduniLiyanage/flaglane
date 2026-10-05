@@ -56,7 +56,7 @@ management:
       show-components: always
       group:
         # NFR-REL-003: readiness never includes the database. A database outage must not have
-        # an orchestrator evict the instance while it can still serve from cache. Slice 2.7 adds
-        # the ruleset cache indicator here; it is the only thing readiness should depend on.
+        # an orchestrator evict the instance while it can still serve from cache, and the cache
+        # is the only thing readiness depends on.
         readiness:
-          include: readinessState
+          include: readinessState,rulesetCache
