@@ -39,6 +39,25 @@ public class TenantResolver {
     return new ProjectScope(ids.getFirst(), projectKey, owner.userId());
   }
 
+  static final String FLAG_NOT_FOUND = "Flag not found";
+
+  /**
+   * Checks the project has a flag with this key, archived or not.
+   *
+   * @throws NotFoundException if it does not
+   */
+  public void requireFlag(ProjectScope project, String flagKey) {
+    List<UUID> ids =
+        database.queryForList(
+            "select id from flags where project_id = ? and key = ?",
+            UUID.class,
+            project.projectId(),
+            flagKey);
+    if (ids.isEmpty()) {
+      throw new NotFoundException(FLAG_NOT_FOUND);
+    }
+  }
+
   /** Every environment of the project, as scopes, in creation order. */
   public List<EnvironmentScope> environments(ProjectScope project) {
     return database.query(

@@ -478,3 +478,19 @@ erratum alongside the `docs/DATABASE.md` foreign key table. **Rejected:** narrow
 let the referential SET NULL through — it would hold, but the one guarantee a trigger exists to give
 would carry an exception; soft-deleting environments — every environment query would have to filter
 deleted rows forever, to preserve a NULL that says less than the id it replaces.
+
+---
+
+## ADR-023 — Upper bounds on what one configuration may hold
+
+Nothing bounded how many rules or overrides a configuration could carry, yet every one of them is
+in the ruleset each SDK downloads and walked on the hot path, and NFR-PER-001 is stated at 50 rules
+on the flag under evaluation. **Decision:** the management API refuses more than 100 rules per
+configuration, more than 1,000 match values per rule, attribute names over 100 characters, more
+than 1,000 user overrides per configuration, and user keys over 256 characters. **Consequences:**
+the ruleset and the evaluation cost of one flag have a known ceiling, at twice the rule count the
+performance requirement is measured at. A team that genuinely needs more overrides is pushed
+towards a targeting rule on an attribute, which is what scales. **Rejected:** no limits — the
+ruleset is downloaded by every SDK, and an unbounded one is a denial of service by configuration;
+tighter limits now — raising a limit later breaks nothing, lowering one would invalidate stored
+configurations, so the starting point errs generous.
