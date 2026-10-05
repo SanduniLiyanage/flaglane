@@ -85,7 +85,9 @@ carries one is caught too (FR-KEY-008). Assert that a client key's ETag does not
 key's request:
 issue both keys, take the client key's ETag, send it as `If-None-Match` on a server-key request,
 and assert 200 with the full body rather than 304. Assert the response carries
-`Cache-Control: private, no-store` and `Vary: Authorization`.
+`Cache-Control: private, no-store` and `Vary: Authorization`. Implemented in `ClientKeyExposureTest`, which searches the
+serialised body for each user key both as written and as JSON escapes it, and also checks that
+`POST /sdk/evaluate` with a client key neither applies an override nor reveals a hidden flag.
 
 ### 7. Evaluation never throws — FR-EVL-006
 Feed the engine a malformed rule, an unknown operator, a null user key, an unknown attribute, an
