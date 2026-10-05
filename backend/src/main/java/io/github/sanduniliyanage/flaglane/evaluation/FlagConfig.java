@@ -90,6 +90,14 @@ public final class FlagConfig {
     return rolloutSalt;
   }
 
+  /**
+   * Whether the percentage rollout reaches this user: {@code bucket(rolloutSalt, userKey) <
+   * rolloutBasisPoints} (FR-EVL-001 step 4).
+   */
+  public boolean isInRollout(String userKey) {
+    return Bucketing.isInRollout(rolloutSalt, userKey, rolloutBasisPoints);
+  }
+
   /** User overrides by user key. */
   public Map<String, Boolean> overrides() {
     return overrides;

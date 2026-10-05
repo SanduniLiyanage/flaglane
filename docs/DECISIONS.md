@@ -380,3 +380,20 @@ behaves the same whether it omitted the key or sent it empty. **Rejected:** exac
 comparison — it would make `1` and `1.0` differ in Java and agree in TypeScript, the precise kind of
 silent divergence E-011 exists to prevent; hashing `""` like any other key — every anonymous caller
 would share one bucket and switch on or off together.
+
+---
+
+## ADR-018 — An unpaired surrogate in a user key hashes as U+FFFD
+
+FR-EVL-002 hashes the UTF-8 bytes of `rolloutSalt + ":" + userKey`, but a JavaScript or Java string
+can hold an unpaired UTF-16 surrogate — a key cut through the middle of an emoji, or a JSON `\ud83d`
+escape — and such a string has no UTF-8 encoding at all. Each runtime substitutes something:
+`TextEncoder` and Node's `Buffer` write U+FFFD (`EF BF BD`), while Java's `String.getBytes` writes
+`?`, so the same key lands in different buckets on the server and in the SDK. **Decision:** the
+server encodes each unpaired surrogate as U+FFFD, matching the WHATWG encoder the SDK cannot avoid
+using; well-formed strings take the ordinary `getBytes` path unchanged. **Consequences:** both
+implementations bucket every string identically, malformed ones included, at the cost of one scan
+of the key for surrogates. Two keys that differ only in which lone surrogate they carry share a
+bucket, which is harmless. **Rejected:** rejecting such keys — the evaluation path never throws and
+would have to pick a bucket anyway; leaving Java's `?` — the SDK would need a custom encoder to
+match it, in every runtime it ever ships for.
