@@ -9,7 +9,7 @@ Status is updated as slices merge. Anything not listed here is not in v0.1.
 | 1.1 Build skeleton | Done |
 | 1.2 Schema | Done. `V2__roles.sql` grants; the role itself is provisioned by the environment (ADR-016). `V3__audit_append_only.sql` landed with it, together with suite 10, because a trigger without its suite is not done — which completes slice 3.9 early |
 | 1.3 Docker Compose | Done. The API image carries no HTTP client, so the `api` service has no Compose healthcheck yet |
-| 1.4 GitHub Actions | Done for format, analysis, tests and image build. The coverage gate is added in slice 2.1, when `evaluation/` exists to measure |
+| 1.4 GitHub Actions | Done. Format, analysis, tests, image build, and since slice 2.5 the coverage gate: `check` fails below 90% line coverage in `evaluation/` (97.9% when it landed) |
 | 1.5 springdoc-openapi | Done. `/v3/api-docs` and Swagger UI are served; the document has no paths until slice 1.6 adds the first endpoint |
 | 2.1 `evaluation/` types | Done. `Ruleset`, `FlagConfig`, `TargetingRule`, `UserContext` and the `Value` family; a source-level test fails the build if `evaluation/` imports anything outside `java.*`. Number equality and the empty user key decided in ADR-017 |
 | 2.2 Bucketing | Done. MurmurHash3 x86_32 in `evaluation/`, buckets 0–9999. Suites 1, 2, 3 and 11 were written first and pass against the committed 100,000-key fixture; every bucket of that fixture matches the reference C implementation. Unpaired surrogates hash as U+FFFD (ADR-018) |

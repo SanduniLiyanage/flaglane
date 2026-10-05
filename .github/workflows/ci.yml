@@ -1,9 +1,9 @@
 # Continuous integration: the gates in docs/TESTING.md that exist so far.
 #
-# `check` runs spotlessCheck, SpotBugs and the tests. The tests run against a real
+# `check` runs spotlessCheck, SpotBugs, the tests, and the JaCoCo gate that fails the
+# build below 90% line coverage in evaluation/. The tests run against a real
 # PostgreSQL through Testcontainers, which finds the runner's Docker daemon at its
-# default socket with no setup step. The coverage gate arrives with the evaluation/
-# package in slice 2.1 and the SDK gate with slice 4.2.
+# default socket with no setup step. The SDK gate arrives with slice 4.2.
 name: CI
 
 on:

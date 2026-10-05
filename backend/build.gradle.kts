@@ -1,5 +1,6 @@
 plugins {
     java
+    jacoco
     id("org.springframework.boot")
     id("io.spring.dependency-management")
     id("com.diffplug.spotless")
@@ -43,6 +44,41 @@ tasks.withType<Test> {
         "flaglane.postgres.initScript",
         rootDir.resolve("docker/postgres/init-roles.sh").absolutePath,
     )
+}
+
+jacoco {
+    // Pinned rather than left to Gradle's default: reading Java 25 class files needs 0.8.14 or
+    // later, and an older agent fails the test task rather than the coverage check.
+    toolVersion = "0.8.15"
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+// docs/TESTING.md gate 4 (NFR-MNT-001): evaluation/ keeps 90% line coverage. Only that package is
+// gated. It is the product, and it is pure, so every line in it is reachable from a plain test.
+tasks.jacocoTestCoverageVerification {
+    dependsOn(tasks.test)
+    violationRules {
+        rule {
+            element = "PACKAGE"
+            includes = listOf("io.github.sanduniliyanage.flaglane.evaluation")
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = "0.90".toBigDecimal()
+            }
+        }
+    }
+}
+
+tasks.check {
+    dependsOn(tasks.jacocoTestReport, tasks.jacocoTestCoverageVerification)
 }
 
 spotless {
