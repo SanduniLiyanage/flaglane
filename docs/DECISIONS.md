@@ -457,3 +457,24 @@ password limits are the easy ones to relax later: loosening breaks no stored pas
 would. **Rejected:** jjwt — a second library for what the starter already carries; RS256 — a key
 pair to manage for a token only this process ever reads; server-side sessions — the dashboard API is
 stateless by design, and revocation is ADR-012's deferred work, not this one's.
+
+---
+
+## ADR-022 — Audit entries keep the id of a deleted environment rather than losing it
+
+FR-ENV-003 and `docs/DATABASE.md` had deleting an environment set `audit_entries.environment_id` to
+NULL through `ON DELETE SET NULL`, while FR-AUD-002 and `V3__audit_append_only.sql` make every
+UPDATE of `audit_entries` fail. The referential action is an UPDATE, so the trigger refused it, and
+no environment that had ever been audited — which is every environment — could be deleted; this was
+reproduced against PostgreSQL before slice 1.7 built the endpoint. **Decision:**
+`V4__audit_keeps_deleted_references.sql` drops the foreign keys from `audit_entries.environment_id`
+and `audit_entries.flag_id`. An entry keeps the id of what it describes after that is deleted, and
+the append-only trigger stays absolute, with no exception for any role or any path. **Consequences:**
+the audit trail keeps more than it did: a deleted environment's entries still say which environment
+they were about, and their payloads carry its key. Those two columns are no longer checked by the
+database on insert; the service writes them in the same transaction as the change they describe.
+FR-ENV-003's "blanks the environment reference" becomes "keeps it", to be recorded as an SRS
+erratum alongside the `docs/DATABASE.md` foreign key table. **Rejected:** narrowing the trigger to
+let the referential SET NULL through — it would hold, but the one guarantee a trigger exists to give
+would carry an exception; soft-deleting environments — every environment query would have to filter
+deleted rows forever, to preserve a NULL that says less than the id it replaces.

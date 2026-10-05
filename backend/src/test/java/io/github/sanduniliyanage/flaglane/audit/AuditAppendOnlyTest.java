@@ -129,6 +129,48 @@ class AuditAppendOnlyTest {
     }
   }
 
+  @Test
+  void deletingAnEnvironmentLeavesItsAuditEntriesExactlyAsTheyWere() throws Exception {
+    UUID environmentId = UUID.randomUUID();
+    UUID entryId = UUID.randomUUID();
+    try (Connection migrator = POSTGRES.connectAsMigrator()) {
+      try (PreparedStatement environment =
+          migrator.prepareStatement(
+              "insert into environments (id, project_id, key, name, created_at)"
+                  + " values (?, ?, 'doomed', 'Doomed', now())")) {
+        environment.setObject(1, environmentId);
+        environment.setObject(2, PROJECT_ID);
+        environment.executeUpdate();
+      }
+      try (PreparedStatement entry =
+          migrator.prepareStatement(
+              "insert into audit_entries (id, project_id, environment_id, actor_id, action,"
+                  + " created_at) values (?, ?, ?, ?, 'environment.created', now())")) {
+        entry.setObject(1, entryId);
+        entry.setObject(2, PROJECT_ID);
+        entry.setObject(3, environmentId);
+        entry.setObject(4, USER_ID);
+        entry.executeUpdate();
+      }
+    }
+
+    try (Connection app = POSTGRES.connectAsApp();
+        PreparedStatement delete = app.prepareStatement("delete from environments where id = ?")) {
+      delete.setObject(1, environmentId);
+      assertThat(delete.executeUpdate()).isEqualTo(1);
+    }
+
+    try (Connection app = POSTGRES.connectAsApp();
+        PreparedStatement select =
+            app.prepareStatement("select environment_id from audit_entries where id = ?")) {
+      select.setObject(1, entryId);
+      try (ResultSet rows = select.executeQuery()) {
+        assertThat(rows.next()).isTrue();
+        assertThat(rows.getObject(1)).isEqualTo(environmentId);
+      }
+    }
+  }
+
   private static int insertEntry(Connection connection, UUID id, String action)
       throws SQLException {
     try (PreparedStatement insert = connection.prepareStatement(INSERT_ENTRY)) {
