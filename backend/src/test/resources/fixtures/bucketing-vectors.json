@@ -1,0 +1,172 @@
+{
+  "description": "Suite 9, bucketing parity (FR-EVL-002, FR-SDK-007). Every value here was computed by the reference C implementation of MurmurHash3 x86_32, not by either Flaglane implementation. 'murmur3': published verification vectors over the UTF-8 bytes of 'input' (seeds are unsigned). 'buckets': murmur3_x86_32(utf8(salt + ':' + userKey), 0) unsigned % 10000, where an unpaired surrogate is encoded as U+FFFD, as TextEncoder does (ADR-018). 'keySet': the SHA-256 of every bucket of the committed key set for one salt, in file order, one decimal number and a newline per key.",
+  "murmur3": [
+    {
+      "input": "",
+      "seed": 0,
+      "hash": "00000000"
+    },
+    {
+      "input": "",
+      "seed": 1,
+      "hash": "514e28b7"
+    },
+    {
+      "input": "",
+      "seed": 4294967295,
+      "hash": "81f16f39"
+    },
+    {
+      "input": "\u0000\u0000\u0000\u0000",
+      "seed": 0,
+      "hash": "2362f9de"
+    },
+    {
+      "input": "aaaa",
+      "seed": 2538058380,
+      "hash": "5a97808a"
+    },
+    {
+      "input": "aaa",
+      "seed": 2538058380,
+      "hash": "283e0130"
+    },
+    {
+      "input": "aa",
+      "seed": 2538058380,
+      "hash": "5d211726"
+    },
+    {
+      "input": "a",
+      "seed": 2538058380,
+      "hash": "7fa09ea6"
+    },
+    {
+      "input": "abcd",
+      "seed": 2538058380,
+      "hash": "f0478627"
+    },
+    {
+      "input": "abc",
+      "seed": 2538058380,
+      "hash": "c84a62dd"
+    },
+    {
+      "input": "ab",
+      "seed": 2538058380,
+      "hash": "74875592"
+    },
+    {
+      "input": "Hello, world!",
+      "seed": 2538058380,
+      "hash": "24884cba"
+    },
+    {
+      "input": "\u03c0\u03c0\u03c0\u03c0\u03c0\u03c0\u03c0\u03c0",
+      "seed": 2538058380,
+      "hash": "d58063c1"
+    },
+    {
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "seed": 2538058380,
+      "hash": "37405bdc"
+    },
+    {
+      "input": "abc",
+      "seed": 0,
+      "hash": "b3dd93fa"
+    },
+    {
+      "input": "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq",
+      "seed": 0,
+      "hash": "ee925b90"
+    },
+    {
+      "input": "The quick brown fox jumps over the lazy dog",
+      "seed": 2538058380,
+      "hash": "2fa826cd"
+    }
+  ],
+  "buckets": [
+    {
+      "salt": "new-checkout",
+      "userKey": "user-1",
+      "bucket": 631
+    },
+    {
+      "salt": "new-checkout",
+      "userKey": "u-1042",
+      "bucket": 2223
+    },
+    {
+      "salt": "new-checkout",
+      "userKey": "d35acb56-1b11-4db7-a92e-09e7dad8c5d8",
+      "bucket": 3116
+    },
+    {
+      "salt": "new-checkout",
+      "userKey": "",
+      "bucket": 7121
+    },
+    {
+      "salt": "new-checkout",
+      "userKey": "a:b",
+      "bucket": 7400
+    },
+    {
+      "salt": "new-checkout",
+      "userKey": "tenant:7:user:42",
+      "bucket": 3124
+    },
+    {
+      "salt": "new-checkout",
+      "userKey": "\u00e9",
+      "bucket": 8524
+    },
+    {
+      "salt": "new-checkout",
+      "userKey": "e\u0301",
+      "bucket": 1018
+    },
+    {
+      "salt": "new-checkout",
+      "userKey": "\u0dc3\u0db3\u0dd4\u0db1\u0dd2",
+      "bucket": 5445
+    },
+    {
+      "salt": "new-checkout",
+      "userKey": "\u5317\u4eac",
+      "bucket": 910
+    },
+    {
+      "salt": "new-checkout",
+      "userKey": "\ud83d\ude00",
+      "bucket": 6126
+    },
+    {
+      "salt": "new-checkout",
+      "userKey": "\ud840\udc00:\u00fc",
+      "bucket": 9754
+    },
+    {
+      "salt": "new-checkout",
+      "userKey": "\ud83d",
+      "bucket": 8716
+    },
+    {
+      "salt": "new-checkout",
+      "userKey": "x\ude00y",
+      "bucket": 3250
+    },
+    {
+      "salt": "new-checkout",
+      "userKey": "\ude00\ud83d",
+      "bucket": 4945
+    }
+  ],
+  "keySet": {
+    "file": "user-keys.txt",
+    "salt": "new-checkout",
+    "sha256": "48a9483310f48e264ba8e00b17dabcf8c1527917f4438f728525d252b7d1c99f"
+  }
+}

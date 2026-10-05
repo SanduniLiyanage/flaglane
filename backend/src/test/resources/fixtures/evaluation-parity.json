@@ -1,0 +1,169 @@
+{
+  "description": "Suite 9, server and SDK parity (FR-SDK-007). Each ruleset is exactly what GET /sdk/config serves; 'production-client' is the client key's view of 'production', with client-side-visible flags only and no overrides field. Each case evaluates one flag for one context against one ruleset, and both the Java engine and the TypeScript SDK must produce the expected value and reason. A context is {key, attributes}: an absent or empty key is an anonymous evaluation. Rollout cases sit on bucket boundaries computed by the reference MurmurHash3 x86_32: for salt 'rollout-30', user-1 is bucket 2954, user-4 2916, ':leading' 3069, the Sinhala key 3404, 'a:b' 3862 and the emoji 9464; for salt 'checkout', user-1 is 2333, user-6 2400, 'tenant:7:user:42' 1220, the emoji 677, U+00E9 3074 and e+U+0301 3421.",
+  "rulesets": {
+    "production": {
+      "environment": "production",
+      "version": 7,
+      "flags": [
+        {
+          "key": "kill-switch", "enabled": false, "offValue": false, "fallthroughValue": true,
+          "rolloutBasisPoints": 10000, "rolloutSalt": "kill-switch",
+          "overrides": [{ "userKey": "user-1", "value": true }],
+          "rules": [{ "priority": 0, "attribute": "country", "operator": "IN", "matchValues": ["LK"], "resultValue": true }]
+        },
+        {
+          "key": "override-first", "enabled": true, "offValue": false, "fallthroughValue": false,
+          "rolloutBasisPoints": 0, "rolloutSalt": "override-first",
+          "overrides": [
+            { "userKey": "amara@example.com", "value": true },
+            { "userKey": "tenant:7:user:42", "value": false },
+            { "userKey": "සඳුනි", "value": true }
+          ],
+          "rules": [{ "priority": 0, "attribute": "plan", "operator": "EQUALS", "matchValues": ["pro"], "resultValue": true }]
+        },
+        {
+          "key": "rules-order", "enabled": true, "offValue": false, "fallthroughValue": false,
+          "rolloutBasisPoints": 0, "rolloutSalt": "rules-order", "overrides": [],
+          "rules": [
+            { "priority": 2, "attribute": "plan", "operator": "IN", "matchValues": ["pro", "team"], "resultValue": true },
+            { "priority": 0, "attribute": "country", "operator": "NOT_IN", "matchValues": ["LK", "IN"], "resultValue": false },
+            { "priority": 1, "attribute": "country", "operator": "EQUALS", "matchValues": ["LK"], "resultValue": true }
+          ]
+        },
+        {
+          "key": "type-strict", "enabled": true, "offValue": false, "fallthroughValue": false,
+          "rolloutBasisPoints": 0, "rolloutSalt": "type-strict", "overrides": [],
+          "rules": [
+            { "priority": 0, "attribute": "seats", "operator": "EQUALS", "matchValues": [1], "resultValue": true },
+            { "priority": 1, "attribute": "code", "operator": "EQUALS", "matchValues": ["1"], "resultValue": true },
+            { "priority": 2, "attribute": "region", "operator": "NOT_EQUALS", "matchValues": ["EU"], "resultValue": true }
+          ]
+        },
+        {
+          "key": "rollout-30", "enabled": true, "offValue": false, "fallthroughValue": false,
+          "rolloutBasisPoints": 3000, "rolloutSalt": "rollout-30", "overrides": [], "rules": []
+        },
+        {
+          "key": "rollout-edge", "enabled": true, "offValue": false, "fallthroughValue": false,
+          "rolloutBasisPoints": 3404, "rolloutSalt": "rollout-30", "overrides": [], "rules": []
+        },
+        {
+          "key": "rollout-edge-plus-one", "enabled": true, "offValue": false, "fallthroughValue": false,
+          "rolloutBasisPoints": 3405, "rolloutSalt": "rollout-30", "overrides": [], "rules": []
+        },
+        {
+          "key": "shared-a", "enabled": true, "offValue": false, "fallthroughValue": false,
+          "rolloutBasisPoints": 2400, "rolloutSalt": "checkout", "overrides": [], "rules": []
+        },
+        {
+          "key": "shared-b", "enabled": true, "offValue": false, "fallthroughValue": false,
+          "rolloutBasisPoints": 2400, "rolloutSalt": "checkout", "overrides": [], "rules": []
+        },
+        {
+          "key": "inert-rollout", "enabled": true, "offValue": false, "fallthroughValue": true,
+          "rolloutBasisPoints": 0, "rolloutSalt": "inert-rollout", "overrides": [], "rules": []
+        },
+        {
+          "key": "malformed", "enabled": true, "offValue": false, "fallthroughValue": true,
+          "rolloutBasisPoints": 10000, "rolloutSalt": "malformed", "overrides": [],
+          "rules": [
+            { "priority": 0, "attribute": "plan", "operator": "EQUALS", "matchValues": ["pro"], "resultValue": false },
+            { "priority": 1, "attribute": "plan", "operator": "EQUALS", "matchValues": ["a", "b"], "resultValue": false }
+          ]
+        },
+        {
+          "key": "unknown-operator", "enabled": true, "offValue": false, "fallthroughValue": false,
+          "rolloutBasisPoints": 0, "rolloutSalt": "unknown-operator", "overrides": [],
+          "rules": [{ "priority": 0, "attribute": "plan", "operator": "MATCHES_REGEX", "matchValues": ["^p"], "resultValue": true }]
+        },
+        {
+          "key": "anonymous-rollout", "enabled": true, "offValue": false, "fallthroughValue": false,
+          "rolloutBasisPoints": 10000, "rolloutSalt": "anonymous-rollout", "overrides": [], "rules": []
+        }
+      ]
+    },
+    "production-client": {
+      "environment": "production",
+      "version": 7,
+      "flags": [
+        {
+          "key": "override-first", "enabled": true, "offValue": false, "fallthroughValue": false,
+          "rolloutBasisPoints": 0, "rolloutSalt": "override-first",
+          "rules": [{ "priority": 0, "attribute": "plan", "operator": "EQUALS", "matchValues": ["pro"], "resultValue": true }]
+        },
+        {
+          "key": "rollout-30", "enabled": true, "offValue": false, "fallthroughValue": false,
+          "rolloutBasisPoints": 3000, "rolloutSalt": "rollout-30", "rules": []
+        }
+      ]
+    }
+  },
+  "cases": [
+    { "name": "the kill switch beats an override", "ruleset": "production", "flag": "kill-switch", "context": { "key": "user-1" }, "fallback": true, "expected": { "value": false, "reason": "OFF" } },
+    { "name": "the kill switch beats a rule", "ruleset": "production", "flag": "kill-switch", "context": { "key": "user-2", "attributes": { "country": "LK" } }, "fallback": true, "expected": { "value": false, "reason": "OFF" } },
+    { "name": "a disabled flag whose fallthrough is true still returns false", "ruleset": "production", "flag": "kill-switch", "context": {}, "fallback": true, "expected": { "value": false, "reason": "OFF" } },
+
+    { "name": "a user at 0% receives the flag through an override", "ruleset": "production", "flag": "override-first", "context": { "key": "amara@example.com" }, "fallback": false, "expected": { "value": true, "reason": "OVERRIDE" } },
+    { "name": "an override beats a rule, for a user key containing ':'", "ruleset": "production", "flag": "override-first", "context": { "key": "tenant:7:user:42", "attributes": { "plan": "pro" } }, "fallback": true, "expected": { "value": false, "reason": "OVERRIDE" } },
+    { "name": "an override matches a non-ASCII user key exactly", "ruleset": "production", "flag": "override-first", "context": { "key": "සඳුනි" }, "fallback": false, "expected": { "value": true, "reason": "OVERRIDE" } },
+    { "name": "override user keys are case-sensitive", "ruleset": "production", "flag": "override-first", "context": { "key": "AMARA@example.com" }, "fallback": true, "expected": { "value": false, "reason": "FALLTHROUGH" } },
+    { "name": "a rule applies to a user without an override", "ruleset": "production", "flag": "override-first", "context": { "key": "user-2", "attributes": { "plan": "pro" } }, "fallback": false, "expected": { "value": true, "reason": "RULE_MATCH" } },
+    { "name": "nothing applies: the fallthrough value", "ruleset": "production", "flag": "override-first", "context": { "key": "user-3" }, "fallback": true, "expected": { "value": false, "reason": "FALLTHROUGH" } },
+    { "name": "without a user key, rules still apply", "ruleset": "production", "flag": "override-first", "context": { "attributes": { "plan": "pro" } }, "fallback": false, "expected": { "value": true, "reason": "RULE_MATCH" } },
+    { "name": "an empty user key is no user key", "ruleset": "production", "flag": "override-first", "context": { "key": "", "attributes": { "plan": "pro" } }, "fallback": false, "expected": { "value": true, "reason": "RULE_MATCH" } },
+
+    { "name": "rules apply in priority order, not listed order: NOT_IN first", "ruleset": "production", "flag": "rules-order", "context": { "key": "user-1", "attributes": { "country": "US" } }, "fallback": true, "expected": { "value": false, "reason": "RULE_MATCH" } },
+    { "name": "the first matching rule wins", "ruleset": "production", "flag": "rules-order", "context": { "key": "user-1", "attributes": { "country": "LK", "plan": "pro" } }, "fallback": false, "expected": { "value": true, "reason": "RULE_MATCH" } },
+    { "name": "a rule against an attribute the context does not carry never matches", "ruleset": "production", "flag": "rules-order", "context": { "key": "user-1", "attributes": { "plan": "team" } }, "fallback": false, "expected": { "value": true, "reason": "RULE_MATCH" } },
+    { "name": "string comparison is case-sensitive", "ruleset": "production", "flag": "rules-order", "context": { "key": "user-1", "attributes": { "country": "lk" } }, "fallback": true, "expected": { "value": false, "reason": "RULE_MATCH" } },
+    { "name": "no rule matches: the fallthrough value", "ruleset": "production", "flag": "rules-order", "context": { "key": "user-1" }, "fallback": true, "expected": { "value": false, "reason": "FALLTHROUGH" } },
+
+    { "name": "1 equals 1", "ruleset": "production", "flag": "type-strict", "context": { "attributes": { "seats": 1 } }, "fallback": false, "expected": { "value": true, "reason": "RULE_MATCH" } },
+    { "name": "1 equals 1.0", "ruleset": "production", "flag": "type-strict", "context": { "attributes": { "seats": 1.0 } }, "fallback": false, "expected": { "value": true, "reason": "RULE_MATCH" } },
+    { "name": "the string \"1\" never equals the number 1, and NOT_EQUALS never matches an absent attribute", "ruleset": "production", "flag": "type-strict", "context": { "attributes": { "seats": "1" } }, "fallback": true, "expected": { "value": false, "reason": "FALLTHROUGH" } },
+    { "name": "the number 1 never equals the string \"1\"", "ruleset": "production", "flag": "type-strict", "context": { "attributes": { "code": 1 } }, "fallback": true, "expected": { "value": false, "reason": "FALLTHROUGH" } },
+    { "name": "NOT_EQUALS matches a value differing only in case", "ruleset": "production", "flag": "type-strict", "context": { "attributes": { "region": "eu" } }, "fallback": false, "expected": { "value": true, "reason": "RULE_MATCH" } },
+    { "name": "NOT_EQUALS matches an attribute of another type", "ruleset": "production", "flag": "type-strict", "context": { "attributes": { "region": true } }, "fallback": false, "expected": { "value": true, "reason": "RULE_MATCH" } },
+    { "name": "an attribute of an unsupported type is ignored", "ruleset": "production", "flag": "type-strict", "context": { "attributes": { "seats": [1], "region": { "name": "EU" } } }, "fallback": true, "expected": { "value": false, "reason": "FALLTHROUGH" } },
+
+    { "name": "rollout reaches user-1 in bucket 2954 at 3000", "ruleset": "production", "flag": "rollout-30", "context": { "key": "user-1" }, "fallback": false, "expected": { "value": true, "reason": "ROLLOUT" } },
+    { "name": "rollout reaches user-4 in bucket 2916 at 3000", "ruleset": "production", "flag": "rollout-30", "context": { "key": "user-4" }, "fallback": false, "expected": { "value": true, "reason": "ROLLOUT" } },
+    { "name": "rollout misses ':leading' in bucket 3069 at 3000", "ruleset": "production", "flag": "rollout-30", "context": { "key": ":leading" }, "fallback": true, "expected": { "value": false, "reason": "FALLTHROUGH" } },
+    { "name": "rollout misses a key with ':' inside in bucket 3862", "ruleset": "production", "flag": "rollout-30", "context": { "key": "a:b" }, "fallback": true, "expected": { "value": false, "reason": "FALLTHROUGH" } },
+    { "name": "rollout misses a surrogate-pair key in bucket 9464", "ruleset": "production", "flag": "rollout-30", "context": { "key": "😀" }, "fallback": true, "expected": { "value": false, "reason": "FALLTHROUGH" } },
+    { "name": "a rollout equal to the bucket does not reach it", "ruleset": "production", "flag": "rollout-edge", "context": { "key": "සඳුනි" }, "fallback": true, "expected": { "value": false, "reason": "FALLTHROUGH" } },
+    { "name": "a rollout one above the bucket reaches it", "ruleset": "production", "flag": "rollout-edge-plus-one", "context": { "key": "සඳුනි" }, "fallback": false, "expected": { "value": true, "reason": "ROLLOUT" } },
+    { "name": "rollout reaches ':leading' in bucket 3069 at 3404", "ruleset": "production", "flag": "rollout-edge", "context": { "key": ":leading" }, "fallback": false, "expected": { "value": true, "reason": "ROLLOUT" } },
+
+    { "name": "shared salt, flag a: user-1 in bucket 2333 at 2400", "ruleset": "production", "flag": "shared-a", "context": { "key": "user-1" }, "fallback": false, "expected": { "value": true, "reason": "ROLLOUT" } },
+    { "name": "shared salt, flag b: user-1 in bucket 2333 at 2400", "ruleset": "production", "flag": "shared-b", "context": { "key": "user-1" }, "fallback": false, "expected": { "value": true, "reason": "ROLLOUT" } },
+    { "name": "shared salt, flag a: user-6 in bucket 2400 at 2400", "ruleset": "production", "flag": "shared-a", "context": { "key": "user-6" }, "fallback": true, "expected": { "value": false, "reason": "FALLTHROUGH" } },
+    { "name": "shared salt, flag b: user-6 in bucket 2400 at 2400", "ruleset": "production", "flag": "shared-b", "context": { "key": "user-6" }, "fallback": true, "expected": { "value": false, "reason": "FALLTHROUGH" } },
+    { "name": "shared salt, flag a: tenant:7:user:42 in bucket 1220", "ruleset": "production", "flag": "shared-a", "context": { "key": "tenant:7:user:42" }, "fallback": false, "expected": { "value": true, "reason": "ROLLOUT" } },
+    { "name": "shared salt, flag b: tenant:7:user:42 in bucket 1220", "ruleset": "production", "flag": "shared-b", "context": { "key": "tenant:7:user:42" }, "fallback": false, "expected": { "value": true, "reason": "ROLLOUT" } },
+    { "name": "shared salt, flag a: emoji in bucket 677", "ruleset": "production", "flag": "shared-a", "context": { "key": "😀" }, "fallback": false, "expected": { "value": true, "reason": "ROLLOUT" } },
+    { "name": "shared salt, flag b: emoji in bucket 677", "ruleset": "production", "flag": "shared-b", "context": { "key": "😀" }, "fallback": false, "expected": { "value": true, "reason": "ROLLOUT" } },
+    { "name": "shared salt, flag a: precomposed e-acute in bucket 3074", "ruleset": "production", "flag": "shared-a", "context": { "key": "é" }, "fallback": true, "expected": { "value": false, "reason": "FALLTHROUGH" } },
+    { "name": "shared salt, flag b: decomposed e-acute in bucket 3421", "ruleset": "production", "flag": "shared-b", "context": { "key": "é" }, "fallback": true, "expected": { "value": false, "reason": "FALLTHROUGH" } },
+
+    { "name": "a true fallthrough makes the rollout inert", "ruleset": "production", "flag": "inert-rollout", "context": { "key": "user-1" }, "fallback": false, "expected": { "value": true, "reason": "FALLTHROUGH" } },
+    { "name": "a true fallthrough reaches anonymous users too", "ruleset": "production", "flag": "inert-rollout", "context": {}, "fallback": false, "expected": { "value": true, "reason": "FALLTHROUGH" } },
+
+    { "name": "a rule before a malformed rule still wins", "ruleset": "production", "flag": "malformed", "context": { "key": "user-1", "attributes": { "plan": "pro" } }, "fallback": true, "expected": { "value": false, "reason": "RULE_MATCH" } },
+    { "name": "a malformed rule that evaluation reaches resolves to the fallthrough value", "ruleset": "production", "flag": "malformed", "context": { "key": "user-1", "attributes": { "plan": "free" } }, "fallback": false, "expected": { "value": true, "reason": "ERROR" } },
+    { "name": "an unknown operator is malformed", "ruleset": "production", "flag": "unknown-operator", "context": { "attributes": { "plan": "pro" } }, "fallback": true, "expected": { "value": false, "reason": "ERROR" } },
+    { "name": "a malformed rule is reached even when its attribute is absent", "ruleset": "production", "flag": "unknown-operator", "context": {}, "fallback": true, "expected": { "value": false, "reason": "ERROR" } },
+
+    { "name": "without a user key the rollout is skipped", "ruleset": "production", "flag": "anonymous-rollout", "context": {}, "fallback": true, "expected": { "value": false, "reason": "FALLTHROUGH" } },
+    { "name": "an empty user key skips the rollout too", "ruleset": "production", "flag": "anonymous-rollout", "context": { "key": "" }, "fallback": true, "expected": { "value": false, "reason": "FALLTHROUGH" } },
+    { "name": "with a user key a full rollout reaches them", "ruleset": "production", "flag": "anonymous-rollout", "context": { "key": "user-1" }, "fallback": false, "expected": { "value": true, "reason": "ROLLOUT" } },
+
+    { "name": "an unknown flag returns the caller's fallback, true", "ruleset": "production", "flag": "spelled-wrong", "context": { "key": "user-1" }, "fallback": true, "expected": { "value": true, "reason": "FLAG_NOT_FOUND" } },
+    { "name": "an unknown flag returns the caller's fallback, false", "ruleset": "production", "flag": "spelled-wrong", "context": { "key": "user-1" }, "fallback": false, "expected": { "value": false, "reason": "FLAG_NOT_FOUND" } },
+
+    { "name": "a client key's ruleset applies no override", "ruleset": "production-client", "flag": "override-first", "context": { "key": "amara@example.com" }, "fallback": true, "expected": { "value": false, "reason": "FALLTHROUGH" } },
+    { "name": "a client key's ruleset still applies rules", "ruleset": "production-client", "flag": "override-first", "context": { "key": "tenant:7:user:42", "attributes": { "plan": "pro" } }, "fallback": false, "expected": { "value": true, "reason": "RULE_MATCH" } },
+    { "name": "a flag hidden from client keys is not found", "ruleset": "production-client", "flag": "kill-switch", "context": { "key": "user-1" }, "fallback": true, "expected": { "value": true, "reason": "FLAG_NOT_FOUND" } },
+    { "name": "a client key's ruleset still rolls out", "ruleset": "production-client", "flag": "rollout-30", "context": { "key": "user-1" }, "fallback": false, "expected": { "value": true, "reason": "ROLLOUT" } }
+  ]
+}
