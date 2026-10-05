@@ -51,6 +51,19 @@ class OpenApiEndpointTest {
   }
 
   @Test
+  void tenantScopedPathsDeclareTheirVariablesAndNothingOfTheScopes() throws Exception {
+    String document = http.getForEntity("/v3/api-docs", String.class).getBody();
+    JsonNode parameters =
+        json.readTree(document)
+            .at("/paths/~1api~1projects~1{projectKey}~1environments~1{envKey}/delete/parameters");
+
+    assertThat(parameters.findValuesAsText("name"))
+        .containsExactlyInAnyOrder("projectKey", "envKey");
+    assertThat(parameters.findValuesAsText("in")).containsOnly("path");
+    assertThat(document).doesNotContain("OwnerScope", "ProjectScope", "EnvironmentScope");
+  }
+
+  @Test
   void swaggerUiIsLive() {
     ResponseEntity<String> response = http.getForEntity("/swagger-ui/index.html", String.class);
 

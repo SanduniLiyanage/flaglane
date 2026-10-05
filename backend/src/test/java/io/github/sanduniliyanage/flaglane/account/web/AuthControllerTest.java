@@ -12,28 +12,24 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.github.sanduniliyanage.flaglane.ManagementApiSliceTest;
 import io.github.sanduniliyanage.flaglane.account.domain.Account;
 import io.github.sanduniliyanage.flaglane.account.service.AccountService;
 import io.github.sanduniliyanage.flaglane.account.service.IssuedToken;
-import io.github.sanduniliyanage.flaglane.common.clock.ClockConfiguration;
 import io.github.sanduniliyanage.flaglane.common.errors.ConflictException;
 import io.github.sanduniliyanage.flaglane.common.errors.CredentialsRejectedException;
-import io.github.sanduniliyanage.flaglane.common.security.JwtConfiguration;
-import io.github.sanduniliyanage.flaglane.common.security.SecurityConfiguration;
+import io.github.sanduniliyanage.flaglane.common.tenancy.TenantResolver;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.RequestBuilder;
 
 /** Status codes, validation and serialisation of the two open {@code /api/auth} endpoints. */
-@WebMvcTest(AuthController.class)
-@Import({SecurityConfiguration.class, JwtConfiguration.class, ClockConfiguration.class})
+@ManagementApiSliceTest(AuthController.class)
 class AuthControllerTest {
 
   private static final String PASSWORD = "correct-horse-battery";
@@ -43,6 +39,7 @@ class AuthControllerTest {
   private final MockMvc mvc;
 
   @MockitoBean private AccountService accounts;
+  @MockitoBean private TenantResolver tenants;
 
   AuthControllerTest(@Autowired MockMvc mvc) {
     this.mvc = mvc;

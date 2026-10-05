@@ -29,8 +29,8 @@ import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 
 /**
  * Register, sign in, and use the token, through the running application and a real database
- * (FR-ACC-001, FR-ACC-002). Slice 1.6 adds no endpoint behind the token yet, so an unmapped {@code
- * /api} path stands in: 404 with a valid token, 401 without one.
+ * (FR-ACC-001, FR-ACC-002). The project list stands for every endpoint behind the token: 200 with a
+ * valid one, 401 without.
  */
 @FlaglaneIntegrationTest
 class AuthenticationEndToEndTest {
@@ -66,7 +66,7 @@ class AuthenticationEndToEndTest {
     assertThat(registered.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     assertThat(json.readTree(registered.getBody()).path("email").asText()).isEqualTo(email);
     assertThat(signedIn.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(getProjects(token).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    assertThat(getProjects(token).getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(getProjects(null).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
   }
 

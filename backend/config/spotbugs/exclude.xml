@@ -12,4 +12,22 @@
     <Class name="io.github.sanduniliyanage.flaglane.FlaglanePostgres" />
     <Bug pattern="DMI_CONSTANT_DB_PASSWORD" />
   </Match>
+
+  <!--
+    Constructor injection. Services, controllers and the tenant resolver receive Spring-managed
+    singletons (repositories, other services, JdbcTemplate) that are shared on purpose; holding the
+    reference is the point. SpotBugs guesses mutability from method names such as delete() and
+    reports every such constructor. Limited to constructors, in the packages where injection is
+    all a constructor does, and to the test client that wraps the test's own HTTP client. Value
+    objects and entities are not covered: they copy what they keep.
+  -->
+  <Match>
+    <Bug pattern="EI_EXPOSE_REP2" />
+    <Method name="&lt;init&gt;" />
+    <Or>
+      <Package name="~io\.github\.sanduniliyanage\.flaglane\.[a-z]+\.(service|web)" />
+      <Class name="io.github.sanduniliyanage.flaglane.common.tenancy.TenantResolver" />
+      <Class name="io.github.sanduniliyanage.flaglane.ManagementApiClient" />
+    </Or>
+  </Match>
 </FindBugsFilter>
