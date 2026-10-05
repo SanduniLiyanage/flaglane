@@ -27,6 +27,25 @@ public final class FlaglanePostgres extends PostgreSQLContainer<FlaglanePostgres
 
   private static final String INIT_SCRIPT_PROPERTY = "flaglane.postgres.initScript";
 
+  /**
+   * One container for every test that needs a database but not a database of its own, started on
+   * first use and left to Testcontainers to remove when the JVM exits. Tests sharing it must not
+   * depend on what other tests have or have not written: they use keys of their own.
+   */
+  public static FlaglanePostgres shared() {
+    return Shared.INSTANCE;
+  }
+
+  private static final class Shared {
+    private static final FlaglanePostgres INSTANCE = startShared();
+
+    private static FlaglanePostgres startShared() {
+      FlaglanePostgres postgres = new FlaglanePostgres();
+      postgres.start();
+      return postgres;
+    }
+  }
+
   public FlaglanePostgres() {
     super("postgres:16");
     withCopyFileToContainer(

@@ -6,22 +6,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 /** The health surface NFR-REL-003 specifies, against a real database with the two-role split. */
-@Testcontainers
-@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
+@FlaglaneIntegrationTest
 class HealthEndpointTest {
-
-  @Container private static final FlaglanePostgres POSTGRES = new FlaglanePostgres();
 
   private final TestRestTemplate http;
   private final ObjectMapper json;
@@ -29,11 +20,6 @@ class HealthEndpointTest {
   HealthEndpointTest(@Autowired TestRestTemplate http, @Autowired ObjectMapper json) {
     this.http = http;
     this.json = json;
-  }
-
-  @DynamicPropertySource
-  static void databaseProperties(DynamicPropertyRegistry registry) {
-    POSTGRES.registerProperties(registry);
   }
 
   @Test

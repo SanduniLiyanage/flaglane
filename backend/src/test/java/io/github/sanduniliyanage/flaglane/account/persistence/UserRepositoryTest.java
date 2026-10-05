@@ -3,7 +3,7 @@ package io.github.sanduniliyanage.flaglane.account.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
-import io.github.sanduniliyanage.flaglane.FlaglanePostgres;
+import io.github.sanduniliyanage.flaglane.FlaglaneIntegrationTest;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -11,21 +11,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import org.springframework.test.context.ContextConfiguration;
 
 /**
  * {@code users} through JPA, as the application role, against the migrated schema. Hibernate also
  * validates the entity mapping against that schema when this context starts.
  */
-@Testcontainers
 @DataJpaTest
+@ContextConfiguration(initializers = FlaglaneIntegrationTest.SharedDatabase.class)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 class UserRepositoryTest {
-
-  @Container private static final FlaglanePostgres POSTGRES = new FlaglanePostgres();
 
   private static final Instant CREATED_AT = Instant.parse("2026-10-05T09:30:00.123456Z");
 
@@ -33,11 +28,6 @@ class UserRepositoryTest {
 
   UserRepositoryTest(@Autowired UserRepository users) {
     this.users = users;
-  }
-
-  @DynamicPropertySource
-  static void databaseProperties(DynamicPropertyRegistry registry) {
-    POSTGRES.registerProperties(registry);
   }
 
   @Test

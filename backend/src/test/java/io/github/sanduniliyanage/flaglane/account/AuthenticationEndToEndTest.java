@@ -3,7 +3,7 @@ package io.github.sanduniliyanage.flaglane.account;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.github.sanduniliyanage.flaglane.FlaglanePostgres;
+import io.github.sanduniliyanage.flaglane.FlaglaneIntegrationTest;
 import io.github.sanduniliyanage.flaglane.common.security.JwtConfiguration;
 import java.time.Clock;
 import java.time.Duration;
@@ -13,8 +13,6 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -28,21 +26,14 @@ import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * Register, sign in, and use the token, through the running application and a real database
  * (FR-ACC-001, FR-ACC-002). Slice 1.6 adds no endpoint behind the token yet, so an unmapped {@code
  * /api} path stands in: 404 with a valid token, 401 without one.
  */
-@Testcontainers
-@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
+@FlaglaneIntegrationTest
 class AuthenticationEndToEndTest {
-
-  @Container private static final FlaglanePostgres POSTGRES = new FlaglanePostgres();
 
   private static final String PASSWORD = "correct-horse-battery";
 
@@ -63,11 +54,6 @@ class AuthenticationEndToEndTest {
     this.database = database;
     this.encoder = encoder;
     this.clock = clock;
-  }
-
-  @DynamicPropertySource
-  static void databaseProperties(DynamicPropertyRegistry registry) {
-    POSTGRES.registerProperties(registry);
   }
 
   @Test
