@@ -176,7 +176,7 @@ implying otherwise.
 | `api_keys.key_hash` unique | Two keys cannot collide into one identity |
 | `api_keys.key_type` check in (`server`, `client`) | FR-KEY-001 |
 | `audit_entries.action` check against the action vocabulary | FR-AUD-001 |
-| `audit_entries` before update-or-delete trigger, plus revoked grants | FR-AUD-002 |
+| `audit_entries` before update-or-delete and before truncate triggers, plus revoked grants | FR-AUD-002 |
 
 Not enforced by the database, and enforced in service code with a repository test instead:
 
@@ -212,7 +212,9 @@ stated in FR-FLG-005 so the dashboard does not have to discover it at runtime.
 
 So: a `BEFORE UPDATE OR DELETE` trigger on `audit_entries` that raises an exception, **plus** the
 revokes. The trigger holds regardless of role, ownership or superuser status, which is what makes
-the suite 10 assertion meaningful.
+the suite 10 assertion meaningful. A row-level trigger does not fire on `TRUNCATE`, so a second,
+statement-level `BEFORE TRUNCATE` trigger raises the same exception; without it the owning role
+could empty the table in one statement that the first trigger never sees.
 
 Two roles, in compose, in deployment and in the Testcontainers fixture. Roles and their passwords
 are provisioned by the environment — `docker/postgres/init-roles.sh` for Compose and the fixture,
@@ -320,7 +322,7 @@ management API, the cache rebuild, and the key cache's own load.
 | --- | --- |
 | `V1__baseline.sql` | All tables, constraints, triggers and indexes above |
 | `V2__roles.sql` | Grants to `flaglane_app`, and the revokes on `audit_entries`. The role itself is provisioned by the environment before Flyway runs (ADR-016) |
-| `V3__audit_append_only.sql` | The `BEFORE UPDATE OR DELETE` trigger on `audit_entries` |
+| `V3__audit_append_only.sql` | The `BEFORE UPDATE OR DELETE` row trigger and the `BEFORE TRUNCATE` statement trigger on `audit_entries` |
 
 Later migrations are added as features land. Every migration is reversible by a forward
 migration, never by editing.

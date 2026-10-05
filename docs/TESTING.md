@@ -98,7 +98,9 @@ Attempt `UPDATE`, `DELETE` and `TRUNCATE` against `audit_entries`, both as the a
 as the owning role. Assert all fail at the database, not in service code. The fixture provisions
 `flaglane_app` as a non-superuser role with the production grants; a test run as
 `PostgreSQLContainer`'s default superuser bypasses privilege checks entirely and would pass while
-proving nothing, which is why the trigger, not the revoke, is the thing under test.
+proving nothing, which is why the trigger, not the revoke, is the thing under test. Implemented
+in `AuditAppendOnlyTest`; the grants themselves are asserted separately in
+`ApplicationRolePrivilegesTest`.
 
 ### 11. Rollout monotonicity — FR-EVL-008
 Step a flag from 0 to 10000 basis points in 100 steps over the committed key set. Assert that at

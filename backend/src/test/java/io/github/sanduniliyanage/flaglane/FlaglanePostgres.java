@@ -2,6 +2,12 @@ package io.github.sanduniliyanage.flaglane;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.util.Map;
+import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.output.MigrateResult;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.utility.MountableFile;
@@ -31,11 +37,37 @@ public final class FlaglanePostgres extends PostgreSQLContainer<FlaglanePostgres
 
   /** Points a Spring context at this container with the two-role configuration. */
   public void registerProperties(DynamicPropertyRegistry registry) {
-    registry.add("spring.datasource.url", this::getJdbcUrl);
-    registry.add("spring.datasource.username", () -> APP_USER);
-    registry.add("spring.datasource.password", () -> APP_PASSWORD);
-    registry.add("spring.flyway.user", () -> MIGRATOR_USER);
-    registry.add("spring.flyway.password", () -> MIGRATOR_PASSWORD);
+    connectionProperties().forEach((name, value) -> registry.add(name, () -> value));
+  }
+
+  /** The same two-role configuration, for contexts built by hand rather than by annotation. */
+  public Map<String, String> connectionProperties() {
+    return Map.of(
+        "spring.datasource.url", getJdbcUrl(),
+        "spring.datasource.username", APP_USER,
+        "spring.datasource.password", APP_PASSWORD,
+        "spring.flyway.user", MIGRATOR_USER,
+        "spring.flyway.password", MIGRATOR_PASSWORD);
+  }
+
+  /**
+   * Runs every migration as {@code flaglane_migrator}, exactly as the application does at startup.
+   */
+  public MigrateResult migrate() {
+    return Flyway.configure()
+        .dataSource(getJdbcUrl(), MIGRATOR_USER, MIGRATOR_PASSWORD)
+        .load()
+        .migrate();
+  }
+
+  /** A plain JDBC connection as the application role, for asserting what its grants allow. */
+  public Connection connectAsApp() throws SQLException {
+    return DriverManager.getConnection(getJdbcUrl(), APP_USER, APP_PASSWORD);
+  }
+
+  /** A plain JDBC connection as the schema owner, for asserting what holds even for the owner. */
+  public Connection connectAsMigrator() throws SQLException {
+    return DriverManager.getConnection(getJdbcUrl(), MIGRATOR_USER, MIGRATOR_PASSWORD);
   }
 
   private static Path initScript() {

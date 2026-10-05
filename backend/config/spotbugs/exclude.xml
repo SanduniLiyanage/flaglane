@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Findings SpotBugs is asked not to report, each with the reason. Keep this list short: an
+  exclusion is a claim that the detector is wrong here, and every entry is reviewed as such.
+-->
+<FindBugsFilter>
+  <!--
+    The Testcontainers fixture connects to a throwaway container as each of the two database
+    roles. Its passwords exist only for the lifetime of that container and are not secrets.
+  -->
+  <Match>
+    <Class name="io.github.sanduniliyanage.flaglane.FlaglanePostgres" />
+    <Bug pattern="DMI_CONSTANT_DB_PASSWORD" />
+  </Match>
+</FindBugsFilter>

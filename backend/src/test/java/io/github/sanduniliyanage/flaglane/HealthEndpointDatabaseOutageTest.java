@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.builder.SpringApplicationBuilder;
@@ -12,7 +13,6 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.testcontainers.containers.PostgreSQLContainer;
 
 /**
  * NFR-REL-003: a database outage is visible on the aggregate endpoint and invisible to the liveness
@@ -29,7 +29,7 @@ class HealthEndpointDatabaseOutageTest {
 
   @Test
   void databaseOutageLeavesLivenessAndReadinessUp() throws Exception {
-    try (PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16")) {
+    try (FlaglanePostgres postgres = new FlaglanePostgres()) {
       postgres.start();
 
       try (ConfigurableApplicationContext application = start(postgres)) {
@@ -53,18 +53,12 @@ class HealthEndpointDatabaseOutageTest {
     }
   }
 
-  private static ConfigurableApplicationContext start(PostgreSQLContainer<?> postgres) {
+  private static ConfigurableApplicationContext start(FlaglanePostgres postgres) {
     // Hikari waits 30 seconds for a connection by default; the outage should be noticed in one.
-    Map<String, String> properties =
-        Map.of(
-            "server.port", "0",
-            "spring.datasource.url", postgres.getJdbcUrl(),
-            "spring.datasource.username", postgres.getUsername(),
-            "spring.datasource.password", postgres.getPassword(),
-            "spring.flyway.user", postgres.getUsername(),
-            "spring.flyway.password", postgres.getPassword(),
-            "spring.datasource.hikari.connection-timeout", "1000",
-            "spring.datasource.hikari.connection-test-query", "SELECT 1");
+    Map<String, String> properties = new HashMap<>(postgres.connectionProperties());
+    properties.put("server.port", "0");
+    properties.put("spring.datasource.hikari.connection-timeout", "1000");
+    properties.put("spring.datasource.hikari.connection-test-query", "SELECT 1");
     return new SpringApplicationBuilder(FlaglaneApplication.class)
         .initializers(context -> TestPropertyValues.of(properties).applyTo(context))
         .run();
