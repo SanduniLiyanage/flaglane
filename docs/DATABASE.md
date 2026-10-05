@@ -90,8 +90,8 @@ erDiagram
     audit_entries {
         uuid id PK
         uuid project_id FK
-        uuid environment_id FK
-        uuid flag_id FK
+        uuid environment_id "no FK since V4"
+        uuid flag_id "no FK since V4"
         uuid actor_id FK
         text action
         jsonb previous_value
@@ -265,13 +265,18 @@ the ruleset version.
 | `user_overrides.flag_config_id → flag_configs` | `CASCADE` |
 | `audit_entries.project_id → projects` | `RESTRICT` |
 | `audit_entries.actor_id → users` | `RESTRICT` |
-| `audit_entries.environment_id → environments` | `SET NULL` |
-| `audit_entries.flag_id → flags` | `SET NULL` |
 
-The audit log outlives what it describes. Deleting an environment blanks the reference and keeps
-the entry; deleting a project is impossible while its audit trail exists, which in v0.x means
-impossible, because there is no project deletion endpoint. Flags are archived rather than deleted,
-so the `SET NULL` on `flag_id` is a backstop, not a path anything takes.
+`audit_entries.environment_id` and `audit_entries.flag_id` have no foreign key. They had one, with
+`ON DELETE SET NULL`, and that could never work: the referential action is an UPDATE of
+`audit_entries`, which the append-only trigger refuses, so no environment that had ever been audited
+could be deleted. `V4__audit_keeps_deleted_references.sql` dropped both (ADR-022, E-038).
+
+The audit log outlives what it describes. Deleting an environment leaves its entries exactly as they
+were, still carrying the deleted environment's id; an id that no longer resolves is the accurate
+record of something that existed and was removed. The service writes both columns in the same
+transaction as the change they describe, which is what the dropped constraint used to check.
+Deleting a project is impossible while its audit trail exists, which in v0.x means impossible,
+because there is no project deletion endpoint. Flags are archived rather than deleted.
 
 ## Audit action vocabulary
 
@@ -323,6 +328,7 @@ management API, the cache rebuild, and the key cache's own load.
 | `V1__baseline.sql` | All tables, constraints, triggers and indexes above |
 | `V2__roles.sql` | Grants to `flaglane_app`, and the revokes on `audit_entries`. The role itself is provisioned by the environment before Flyway runs (ADR-016) |
 | `V3__audit_append_only.sql` | The `BEFORE UPDATE OR DELETE` row trigger and the `BEFORE TRUNCATE` statement trigger on `audit_entries` |
+| `V4__audit_keeps_deleted_references.sql` | Drops the foreign keys from `audit_entries.environment_id` and `flag_id`, whose `SET NULL` the V3 trigger refused (ADR-022) |
 
 Later migrations are added as features land. Every migration is reversible by a forward
 migration, never by editing.

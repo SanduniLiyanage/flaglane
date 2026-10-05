@@ -46,12 +46,19 @@ engine server-side.
 
 ## 3. The evaluation engine
 
-`io.github.sanduniliyanage.flaglane.evaluation` is plain Java. No Spring, no JPA, no database.
-It is a pure function:
+`io.github.sanduniliyanage.flaglane.evaluation` is plain Java. No Spring, no JPA, no database,
+and no import from any other Flaglane package, which a test enforces. It is a pure function:
 
 ```
-evaluate(Ruleset, flagKey, UserContext, fallback) -> Value
+evaluate(Ruleset, flagKey, UserContext, fallback) -> Evaluation(value, reason)
 ```
+
+The reason is the step of the resolution order that produced the value — `OFF`, `OVERRIDE`,
+`RULE_MATCH`, `ROLLOUT`, `FALLTHROUGH`, `FLAG_NOT_FOUND` or `ERROR` — and is what `POST
+/sdk/evaluate` reports per flag. The engine produces it rather than the endpoint deriving it, so
+there is one implementation of the order, not two. A user attribute or rule operand is a `Value`:
+a string, a number (an IEEE-754 double, as in JavaScript) or a boolean, compared type-strictly
+(ADR-017, ADR-019).
 
 Purity is a design requirement, not an aesthetic. It makes the engine exhaustively testable
 without a container, and it means the same logic can be described precisely enough for the
@@ -89,7 +96,10 @@ left to each implementation. They look pedantic and they are the exact points at
 implementation and a TypeScript one silently disagree. MurmurHash3 x86_32 is about forty lines and
 is implemented inside `evaluation/` rather than pulled in as a dependency; if Guava ever arrives
 for another reason, `Hashing.murmur3_32_fixed()` is the correct constructor and the deprecated
-`murmur3_32()` is not — it mishandles non-ASCII input.
+`murmur3_32()` is not — it mishandles non-ASCII input. One case has no UTF-8 encoding at all: a key
+holding an unpaired UTF-16 surrogate. It is encoded with U+FFFD in its place, which is what
+`TextEncoder` does on the SDK's side and not what Java's `String.getBytes` does (ADR-018). Every
+bucket of the 100,000-key test fixture is asserted against the reference C implementation.
 
 Four properties matter:
 
@@ -99,7 +109,7 @@ versions. This rules out random numbers, and it rules out anything seeded by pro
 identity, or wall-clock time.
 
 **Uniform.** A 30% rollout must reach approximately 30% of users. MurmurHash3 distributes evenly
-across the 0–99 range for realistic user key distributions, and this is asserted by test, not
+across the 0–9999 range for realistic user key distributions, and this is asserted by test, not
 assumed.
 
 **Independent per flag.** The salt is part of the hash input and defaults to the flag key. Without
@@ -119,10 +129,18 @@ predicting their own bucket, and it is several times faster on the hot path (ADR
 
 ## 4. The ruleset cache
 
-The serving API never assembles a response from the database per request (NFR-PER-004).
+The serving API never assembles a response from the database per request (NFR-PER-004). The cache
+and the two serving endpoints live in the `serving` package (ADR-024).
 
-- On startup, and after any write, the service rebuilds an immutable `Ruleset` snapshot per
-  environment and swaps the reference atomically.
+- On startup, before the application accepts requests, and after any write commits, the service
+  rebuilds an immutable snapshot of the affected environment and swaps the reference atomically.
+  A snapshot holds, for each key type, the engine's `Ruleset` and the JSON body `GET /sdk/config`
+  sends. The client one carries client-side-visible flags only and no overrides field at all, and
+  `POST /sdk/evaluate` evaluates a client key against that same filtered ruleset.
+- A snapshot is built from four queries in one `REPEATABLE READ` transaction, so its version is
+  the version of exactly the rows it was built from. Two rebuilds racing for one environment cannot
+  move it backwards: the older version loses. A reconciliation every minute catches a rebuild that
+  failed while the database was briefly away.
 - Reads take the current reference. No locks on the read path.
 - Each snapshot carries `environments.ruleset_version`, bumped in the write transaction. The ETag
   is derived from that version *and the key type*, because one URL serves a full ruleset to a
@@ -170,9 +188,16 @@ on every developer remembering is not a design.
 
 Isolation is structural:
 
-- A `TenantContext` is populated by the security filter from the JWT or API key.
-- Tenant-scoped repositories take the scope as a parameter and every query includes it. There is
-  no repository method that returns rows across projects.
+- A `TenantContext` reads the authenticated user from the JWT the security filter verified. An
+  SDK request is authenticated by its key as one environment and never reads a tenant table.
+- Tenant-scoped repositories take an `OwnerScope`, `ProjectScope` or `EnvironmentScope` rather
+  than an id, and every query includes it. The scopes have no public constructor: only
+  `TenantResolver` creates one, by a query carrying the scope above it, so a service cannot hold a
+  project it was not shown to own. There is no repository method that returns rows across
+  projects, and no inherited `findById` or `findAll`.
+- An interceptor resolves the `{projectKey}`, `{envKey}` and `{flagKey}` a path names before the
+  request body is read, so another tenant's resource is a 404 even where the body would have been
+  a 400.
 - Cross-tenant access returns 404 rather than 403, so existence is not disclosed (FR-PRJ-003).
 - A dedicated test suite attempts isolation breaks from every endpoint and asserts failure
   (`docs/TESTING.md`).
@@ -181,11 +206,11 @@ Isolation is structural:
 
 | Failure | Behaviour |
 | --- | --- |
-| Malformed rule | Skipped, warning logged (rate limited), evaluation continues |
+| Malformed rule | Refused when written (FR-RUL-010). One that reaches evaluation anyway resolves the flag to `fallthroughValue` with reason `ERROR`, warning logged (rate limited); a rule that matched before it still wins (ADR-020) |
 | Unknown flag key | Caller's fallback returned, with reason `FLAG_NOT_FOUND`. Never a 404 |
 | Missing user key | Overrides and rollout skipped, rules still evaluated, then `fallthroughValue` |
 | Engine exception | `fallthroughValue` returned, warning logged, never propagated |
-| Database down | Serving continues from cache, including key authentication; management API returns 503; readiness stays up |
+| Database down | Serving continues from cache, including key authentication; management API returns 503; readiness stays up. One exception: the first management request to borrow a pooled connection that died with the database gets a 500, because the pool reports only that the connection is closed |
 | Flaglane unreachable from SDK | Last known ruleset, then code-level fallback |
 | Stream dropped | Backoff reconnect with jitter, polling meanwhile |
 

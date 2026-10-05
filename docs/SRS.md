@@ -58,9 +58,9 @@ workflows, scheduled changes, SDKs other than TypeScript, regular-expression tar
   environments automatically.
 - **FR-ENV-002** A user may create additional environments with a unique key per project.
 - **FR-ENV-003** An environment is deleted through `DELETE .../environments/{envKey}`, and cannot
-  be deleted while it holds a non-revoked API key. Deleting one cascades to its flag
-  configurations, rules and overrides, and blanks the environment reference on its audit entries
-  rather than removing them.
+  be deleted while it holds a non-revoked API key. Deleting one cascades to its keys, flag
+  configurations, rules and overrides. Its audit entries are neither removed nor changed: they
+  keep the deleted environment's id, which no longer refers to a row (E-038).
 - **FR-ENV-004** Creating an environment creates a configuration for every non-archived flag in
   the project, in the same transaction — disabled, `fallthroughValue` `false`, rollout 0. Without
   this a new environment serves an empty ruleset, every flag falls through to the SDK's code-level
@@ -233,10 +233,11 @@ here is a place they will disagree, silently and in production (E-011).
 
 ### 4.8 Audit
 
-- **FR-AUD-001** Every mutation records actor, timestamp, project, action, previous value and new
-  value, in the same transaction as the change. Environment and flag are recorded where the event
-  has them and are null where it does not: project creation has neither, key creation has no flag.
-  The action is drawn from a fixed vocabulary (`docs/DATABASE.md`).
+- **FR-AUD-001** Every mutation of a project or anything in it records actor, timestamp, project,
+  action, previous value and new value, in the same transaction as the change. Environment and
+  flag are recorded where the event has them and are null where it does not: project creation has
+  neither, key creation has no flag. The action is drawn from a fixed vocabulary
+  (`docs/DATABASE.md`). Registering an account belongs to no project and is not audited (E-037).
 - **FR-AUD-002** Audit entries are append-only, enforced by a before-update-or-delete trigger and
   by grants revoked from the application role. The trigger is what makes this true regardless of
   role, ownership or superuser status; the revoke alone is a speed bump.
@@ -346,3 +347,5 @@ Corrections to this document, recorded rather than silently edited.
 | E-034 | Section 1, Scope | Adds regex operators, revocable sessions and multi-instance operation to what is out of scope for v0.x. | Each was cut or constrained by a finding in the review (E-009, E-028, ADR-013) and the scope section is where a reader looks first. |
 | E-035 | FR-STR-004 | Added: streams use `SseEmitter`, with a stated ceiling of 500 concurrent streams per key and 1,000 per environment. | ADR-004 mentioned "a per-key connection limit" with no number, requirement or test, and a blocking implementation would have capped concurrency at Tomcat's ~200 threads — a ceiling chosen by accident. |
 | E-036 | NFR-PER-003, NFR-REL-002 | Both are qualified as holding on a single instance, with the multi-instance fix named and scheduled. | The ruleset cache and the stream registry are both in process, so a second instance behind a load balancer serves stale flags and never notifies its SDKs. Nothing in ten documents said Flaglane was single-instance, while "self-hostable" invites scaling it. |
+| E-037 | FR-AUD-001 | Scoped to mutations of a project or anything in it. Account registration is not audited. | `audit_entries.project_id` is not nullable and the action vocabulary has no account event, so "every mutation" could not include registering, which belongs to no project. Making the column nullable would let every other event be written without its project by mistake (ADR-021). |
+| E-038 | FR-ENV-003 | A deleted environment's audit entries keep its id instead of having it blanked. | Blanking was `ON DELETE SET NULL`, which is an UPDATE of `audit_entries`, and FR-AUD-002's append-only trigger refuses every UPDATE. No environment that had ever been audited — every one — could be deleted; reproduced against PostgreSQL before the endpoint was built. `V4__audit_keeps_deleted_references.sql` drops the two foreign keys instead (ADR-022). |

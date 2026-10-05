@@ -77,7 +77,7 @@ governance, use Unleash or Flagsmith.
 ```bash
 git clone https://github.com/SanduniLiyanage/flaglane.git
 cd flaglane
-cp .env.example .env    # then set the three passwords in it
+cp .env.example .env    # then set the three passwords and the JWT secret in it
 docker compose up --build
 ```
 
@@ -88,9 +88,11 @@ Nothing else is installed on the host. The stack runs PostgreSQL with two databa
 that owns the schema and runs migrations, one the application runs as with no DDL privileges —
 and the API never sees the superuser.
 
-The passwords in `.env` are yours to choose; there are no defaults, and Compose refuses to start
-until all three are set. `.env` is gitignored. If something on your machine already listens on
-5432, set `FLAGLANE_DB_PORT` in `.env` to publish PostgreSQL on another port.
+The values in `.env` are yours to choose; there are no defaults, and Compose refuses to start until
+all four are set: three database passwords, and `FLAGLANE_JWT_SECRET`, which signs dashboard access
+tokens and must be at least 32 bytes (`openssl rand -base64 48` makes one). Changing the secret
+signs every dashboard user out. `.env` is gitignored. If something on your machine already listens
+on 5432, set `FLAGLANE_DB_PORT` in `.env` to publish PostgreSQL on another port.
 
 See [docs/](docs/) for architecture, API contract, database design and testing strategy.
 

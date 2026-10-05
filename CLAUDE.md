@@ -48,6 +48,7 @@ backend/src/main/java/io/github/sanduniliyanage/flaglane/
   account/           users, registration, sign-in, JWT issuance
   targeting/         rules, user overrides
   evaluation/        the engine — pure logic, no Spring, no database
+  serving/           ruleset cache, GET /sdk/config, POST /sdk/evaluate — reads memory only
   streaming/         SSE connections and change broadcast
   audit/             append-only change log
 ```

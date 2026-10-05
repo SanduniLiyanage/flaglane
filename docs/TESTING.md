@@ -30,11 +30,14 @@ occasional red builds with no bug behind them, in the suites whose whole subject
 The committed key set against a 3000 basis-point rollout. Assert the proportion falls between
 29.5% and 30.5%. Repeat at 100, 5000 and 9900 basis points. Because the key set is fixed the
 computation is fully deterministic, so the band is a safety margin, not a confidence interval.
-Substantiates: a percentage rollout means what it says.
+Substantiates: a percentage rollout means what it says. Implemented in
+`BucketingDistributionTest`.
 
 ### 2. Bucketing determinism — FR-EVL-003
 Run the same 100,000 assignments twice in independent instances. Assert the results are
-identical, element by element. Substantiates: a user never sees the interface flicker.
+identical, element by element. Substantiates: a user never sees the interface flicker. Implemented in
+`BucketingDeterminismTest`, whose second run loads the bucketing code through its own class loader;
+`BucketingTest` also checks every bucket of the key set against the reference C implementation.
 
 ### 3. Cross-flag independence — FR-EVL-004
 Two flags with different salts, both at 3000 basis points, over the committed key set. **Overlap is
@@ -43,18 +46,22 @@ points. It is not the Jaccard ratio, which would be near 17.6% for the identical
 which one is meant is the difference between a passing suite and someone "fixing" it. Also assert
 two flags sharing a salt select the *same* cohort, since that is what the salt is for.
 **This test fails if someone removes the salt from the hash input as a "simplification".**
+Implemented in `CrossFlagIndependenceTest`.
 
 ### 4. Resolution order — FR-EVL-001
 A table-driven suite covering every ordering: kill switch beating an override, override beating a
 rule, rule beating rollout, rollout beating fallthrough, and a user at 0% rollout still receiving
 the flag via an override. One row per branch, no exceptions. Includes the case that motivated
 ADR-009: a disabled configuration whose `fallthroughValue` is `true` still returns `false`.
+Implemented in `ResolutionOrderTest`.
 
 ### 4a. Comparison semantics — FR-RUL-006 to FR-RUL-009
 One row per operator per case: attribute absent, attribute present with the wrong type, case
 differing only in capitalisation, `1` against `"1"`, and a `NOT_EQUALS` against an absent
 attribute. Run identically in Java and TypeScript from the shared fixtures. Substantiates: the two
-implementations agree where the two languages would naturally disagree.
+implementations agree where the two languages would naturally disagree. The rows are in
+`backend/src/test/resources/fixtures/comparison-semantics.json`; `ComparisonSemanticsTest` runs
+them rule by rule and through the whole engine.
 
 ### 5. Tenant isolation — NFR-SEC-004
 For every tenant-scoped endpoint, authenticate as project A and attempt to read and mutate
@@ -64,7 +71,9 @@ The endpoint list is **enumerated at runtime** from Spring's `RequestMappingHand
 maintained by hand. Every `/api/**` mapping must appear either in the tenant-scoped set or in an
 explicit, reviewed exclusion list, and anything unclassified fails the build. A parameterised test
 over a hand-written list proves things only about the endpoints someone remembered to add, which
-is exactly the endpoint this suite exists to catch.
+is exactly the endpoint this suite exists to catch. Implemented in `TenantIsolationTest`, which also
+calls each endpoint inside the caller's own project and environment naming another tenant's
+environment, flag or key.
 
 ### 6. Client key exposure — FR-KEY-005
 An environment holding both visible and non-visible flags. Assert a client key's `/sdk/config`
@@ -82,6 +91,8 @@ and assert 200 with the full body rather than 304. Assert the response carries
 Feed the engine a malformed rule, an unknown operator, a null user key, an unknown attribute, an
 attribute of an unsupported type and a null ruleset. Assert every call returns `fallthroughValue`
 — or the caller's fallback where no configuration is reachable — and that none throws.
+Implemented in `NeverThrowsTest`, with the rate limiting of the warnings in
+`EvaluationWarningsTest`.
 
 ### 8. SDK offline behaviour — FR-SDK-005
 Initialise the SDK, load a ruleset, then make the server unreachable. Assert evaluation continues
@@ -107,7 +118,8 @@ Step a flag from 0 to 10000 basis points in 100 steps over the committed key set
 every step the set of keys receiving the flag is a superset of the previous step's. Substantiates:
 raising a rollout never takes the feature away from someone who already had it, which is the
 property that makes the rollout slider safe to move. **This test fails if `bucket <` becomes
-`bucket <=` against a re-derived bucket, or if the salt is changed on write.**
+`bucket <=` against a re-derived bucket, or if the salt is changed on write.** Implemented in
+`RolloutMonotonicityTest`.
 
 ## Performance checks
 
@@ -133,9 +145,11 @@ are not evidence.
 5. SDK test failures or type errors
 6. A Docker image that does not build
 
-Gates 1, 2, 3 and 6 are live. Gate 4 is wired when the `evaluation/` package lands in slice
-2.1, and gate 5 when the SDK lands in slice 4.2; until then the workflow says so in its header
-comment rather than pretending to enforce a package that does not exist.
+Gates 1, 2, 3, 4 and 6 are live. Gate 4 is `jacocoTestCoverageVerification`, which `check` runs:
+it fails below 90% line coverage in `evaluation/` and nowhere else, and it was confirmed to fail
+when raised above the actual figure. Gate 5 is wired when the SDK lands in slice 4.2; until then
+the workflow says so in its header comment rather than pretending to enforce a package that does
+not exist.
 
 Tests need Docker for Testcontainers. The `ubuntu-latest` runner ships with Docker Engine
 running and the runner user in the `docker` group, so Testcontainers finds the daemon at its
