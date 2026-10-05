@@ -4,10 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.StreamSupport;
@@ -58,6 +60,12 @@ class TenantIsolationTest {
   private String alicesProject;
   private String bobsProject;
 
+  /**
+   * Bob's resources below the environment, by path variable. Each new kind of child resource adds
+   * an entry here, or the suite fails naming the variable it has no value for.
+   */
+  private Map<String, String> bobsChildren;
+
   TenantIsolationTest(
       @Autowired TestRestTemplate http,
       @Autowired ObjectMapper json,
@@ -76,6 +84,11 @@ class TenantIsolationTest {
         "/api/projects/" + bobsProject + "/environments",
         bob,
         Map.of("key", "bob-only", "name", "Bob only"));
+    String bobsKeyId =
+        api.read(api.post(bobsKeys(), bob, Map.of("name", "bob's key", "type", "server")))
+            .path("id")
+            .asText();
+    bobsChildren = Map.of("keyId", bobsKeyId);
   }
 
   @Test
@@ -97,42 +110,59 @@ class TenantIsolationTest {
 
   @Test
   void anotherTenantsProjectIsNotFoundFromEveryTenantScopedEndpoint() {
-    Map<String, String> bobsResources = Map.of("projectKey", bobsProject, "envKey", "bob-only");
-    SoftAssertions softly = new SoftAssertions();
-
-    for (Endpoint endpoint : tenantScopedEndpoints()) {
-      ResponseEntity<String> response = call(endpoint, bobsResources);
-
-      softly
-          .assertThat(response.getStatusCode())
-          .as("%s on Bob's project, as Alice", endpoint)
-          .isEqualTo(HttpStatus.NOT_FOUND);
-    }
-
-    softly.assertAll();
-    assertBobsProjectIsUntouched();
+    assertEveryEndpointIsNotFound(
+        with(Map.of("projectKey", bobsProject, "envKey", "production")),
+        endpoint -> true,
+        "on Bob's project, as Alice");
   }
 
   @Test
-  void anotherTenantsResourceIsNotFoundEvenInsideYourOwnProject() {
-    Map<String, String> bobsInsideAlices =
-        Map.of("projectKey", alicesProject, "envKey", "bob-only");
+  void anotherTenantsEnvironmentIsNotFoundInsideYourOwnProject() {
+    assertEveryEndpointIsNotFound(
+        with(Map.of("projectKey", alicesProject, "envKey", "bob-only")),
+        endpoint -> endpoint.variables().contains("envKey"),
+        "on Alice's project naming Bob's environment");
+  }
+
+  @Test
+  void anotherTenantsResourcesAreNotFoundInsideYourOwnEnvironment() {
+    assertEveryEndpointIsNotFound(
+        with(Map.of("projectKey", alicesProject, "envKey", "production")),
+        endpoint -> !Set.of("projectKey", "envKey").containsAll(endpoint.variables()),
+        "on Alice's own environment naming Bob's resources");
+  }
+
+  private void assertEveryEndpointIsNotFound(
+      Map<String, String> values, Predicate<Endpoint> applies, String description) {
     SoftAssertions softly = new SoftAssertions();
+    int attempts = 0;
 
     for (Endpoint endpoint : tenantScopedEndpoints()) {
-      if (endpoint.variables().equals(Set.of("projectKey"))) {
+      if (!applies.test(endpoint)) {
         continue;
       }
-      ResponseEntity<String> response = call(endpoint, bobsInsideAlices);
+      ResponseEntity<String> response = call(endpoint, values);
+      attempts++;
 
       softly
           .assertThat(response.getStatusCode())
-          .as("%s on Alice's project naming Bob's resources", endpoint)
+          .as("%s %s", endpoint, description)
           .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     softly.assertAll();
+    assertThat(attempts).as("endpoints attempted %s", description).isPositive();
     assertBobsProjectIsUntouched();
+  }
+
+  private Map<String, String> with(Map<String, String> scope) {
+    Map<String, String> values = new HashMap<>(bobsChildren);
+    values.putAll(scope);
+    return values;
+  }
+
+  private String bobsKeys() {
+    return "/api/projects/" + bobsProject + "/environments/production/keys";
   }
 
   private ResponseEntity<String> call(Endpoint endpoint, Map<String, String> values) {
@@ -153,6 +183,9 @@ class TenantIsolationTest {
     assertThat(environments)
         .as("Bob's environments after Alice's attempts")
         .containsExactlyInAnyOrder("development", "staging", "production", "bob-only");
+    assertThat(api.read(api.get(bobsKeys(), bob)).get(0).path("revokedAt").isNull())
+        .as("Bob's key is still live after Alice's attempts")
+        .isTrue();
   }
 
   private List<Endpoint> tenantScopedEndpoints() {

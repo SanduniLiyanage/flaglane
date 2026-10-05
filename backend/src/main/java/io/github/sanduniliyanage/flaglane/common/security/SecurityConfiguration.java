@@ -76,7 +76,8 @@ public class SecurityConfiguration {
     return PasswordEncoderFactories.createDelegatingPasswordEncoder();
   }
 
-  private static HttpSecurity stateless(HttpSecurity http) throws Exception {
+  /** Settings every chain shares: no session, no CSRF, no browser login flows. */
+  public static HttpSecurity stateless(HttpSecurity http) throws Exception {
     return http.sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .csrf(AbstractHttpConfigurer::disable)
