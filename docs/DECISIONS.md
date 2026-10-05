@@ -363,3 +363,20 @@ in any database where nobody remembered to change it. One role for both migratio
 application — the owner of `audit_entries` can grant itself the privileges the revoke removed,
 which `docs/DATABASE.md` already rejects. Superuser for the application — same objection,
 stronger.
+
+---
+
+## ADR-017 — Numbers compare as doubles; an empty user key is no user key
+
+FR-RUL-007 makes comparison type-strict but does not say what "equal" means between two numbers,
+and FR-EVL-005 does not say whether `""` counts as a supplied user key; Java and JavaScript answer
+both differently by default, so the engine decides here and the SDK copies it. **Decision:** every
+number is an IEEE-754 double, as every number in the TypeScript SDK already is, so `1` equals `1.0`,
+`-0` equals `0`, integers above 2^53 collapse exactly as `JSON.parse` collapses them, and NaN and
+infinities are not values at all. An empty user key is treated as absent, so overrides and rollout
+are skipped for it rather than every caller that sent `""` landing in one shared bucket.
+**Consequences:** Java never needs `BigDecimal` to agree with JavaScript, and a key-less caller
+behaves the same whether it omitted the key or sent it empty. **Rejected:** exact decimal
+comparison — it would make `1` and `1.0` differ in Java and agree in TypeScript, the precise kind of
+silent divergence E-011 exists to prevent; hashing `""` like any other key — every anonymous caller
+would share one bucket and switch on or off together.

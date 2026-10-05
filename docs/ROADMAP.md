@@ -11,6 +11,7 @@ Status is updated as slices merge. Anything not listed here is not in v0.1.
 | 1.3 Docker Compose | Done. The API image carries no HTTP client, so the `api` service has no Compose healthcheck yet |
 | 1.4 GitHub Actions | Done for format, analysis, tests and image build. The coverage gate is added in slice 2.1, when `evaluation/` exists to measure |
 | 1.5 springdoc-openapi | Done. `/v3/api-docs` and Swagger UI are served; the document has no paths until slice 1.6 adds the first endpoint |
+| 2.1 `evaluation/` types | Done. `Ruleset`, `FlagConfig`, `TargetingRule`, `UserContext` and the `Value` family; a source-level test fails the build if `evaluation/` imports anything outside `java.*`. Number equality and the empty user key decided in ADR-017 |
 | Everything else | Not started |
 
 ## Principles
