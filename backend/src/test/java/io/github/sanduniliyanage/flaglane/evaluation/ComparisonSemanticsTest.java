@@ -43,7 +43,7 @@ class ComparisonSemanticsTest {
     FlagConfig flag = FlagConfig.builder("flag").enabled(true).rule(row.rule()).build();
     Ruleset ruleset = Ruleset.of("production", 1, List.of(flag));
 
-    Evaluation evaluation = new Evaluator().evaluate(ruleset, "flag", row.user(), false);
+    Evaluation evaluation = TestEvaluators.quiet().evaluate(ruleset, "flag", row.user(), false);
 
     Evaluation expected =
         switch (row.expected()) {

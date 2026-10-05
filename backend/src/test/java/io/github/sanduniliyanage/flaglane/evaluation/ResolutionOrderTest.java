@@ -196,7 +196,7 @@ class ResolutionOrderTest {
       FlagConfig.Builder config, UserContext user, boolean expectedValue, Reason expectedReason) {
     Ruleset ruleset = Ruleset.of("production", 1, List.of(config.build()));
 
-    Evaluation evaluation = new Evaluator().evaluate(ruleset, FLAG, user, !expectedValue);
+    Evaluation evaluation = TestEvaluators.quiet().evaluate(ruleset, FLAG, user, !expectedValue);
 
     assertThat(evaluation).isEqualTo(new Evaluation(expectedValue, expectedReason));
   }
@@ -208,7 +208,7 @@ class ResolutionOrderTest {
         Ruleset.of("production", 1, List.of(enabled().fallthroughValue(true).build()));
 
     Evaluation evaluation =
-        new Evaluator().evaluate(ruleset, "spelled-wrong", UserContext.of(USER), fallback);
+        TestEvaluators.quiet().evaluate(ruleset, "spelled-wrong", UserContext.of(USER), fallback);
 
     assertThat(evaluation).isEqualTo(new Evaluation(fallback, Reason.FLAG_NOT_FOUND));
   }
