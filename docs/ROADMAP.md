@@ -13,6 +13,7 @@ Status is updated as slices merge. Anything not listed here is not in v0.1.
 | 1.5 springdoc-openapi | Done. `/v3/api-docs` and Swagger UI are served; the document has no paths until slice 1.6 adds the first endpoint |
 | 2.1 `evaluation/` types | Done. `Ruleset`, `FlagConfig`, `TargetingRule`, `UserContext` and the `Value` family; a source-level test fails the build if `evaluation/` imports anything outside `java.*`. Number equality and the empty user key decided in ADR-017 |
 | 2.2 Bucketing | Done. MurmurHash3 x86_32 in `evaluation/`, buckets 0–9999. Suites 1, 2, 3 and 11 were written first and pass against the committed 100,000-key fixture; every bucket of that fixture matches the reference C implementation. Unpaired surrogates hash as U+FFFD (ADR-018) |
+| 2.4 Operators | Done, ahead of 2.3, because the resolution-order suite needs rules that can match. Seven operators, compiled once per ruleset build. Suite 4a's rows are in the shared fixture `comparison-semantics.json` for the SDK to run too. Operator shapes and negation decided in ADR-019 |
 | Everything else | Not started |
 
 ## Principles

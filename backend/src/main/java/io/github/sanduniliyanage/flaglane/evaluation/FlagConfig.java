@@ -26,6 +26,7 @@ public final class FlagConfig {
   private final String rolloutSalt;
   private final Map<String, Boolean> overrides;
   private final List<TargetingRule> rules;
+  private final List<CompiledRule> compiledRules;
 
   private FlagConfig(Builder builder) {
     if (builder.rolloutBasisPoints < 0 || builder.rolloutBasisPoints > MAX_ROLLOUT_BASIS_POINTS) {
@@ -42,6 +43,8 @@ public final class FlagConfig {
     // Stable, so rules sharing a priority keep the order they arrived in, as Array.sort does.
     sorted.sort(Comparator.comparingInt(TargetingRule::priority));
     this.rules = List.copyOf(sorted);
+    // Checked once here, when a ruleset is built on write, rather than on every evaluation.
+    this.compiledRules = rules.stream().map(CompiledRule::compile).toList();
   }
 
   /**
@@ -106,6 +109,11 @@ public final class FlagConfig {
   /** Targeting rules in evaluation order: priority ascending. */
   public List<TargetingRule> rules() {
     return rules;
+  }
+
+  /** The same rules, compiled, in the same order. */
+  List<CompiledRule> compiledRules() {
+    return compiledRules;
   }
 
   @Override

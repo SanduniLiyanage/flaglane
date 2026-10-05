@@ -397,3 +397,25 @@ of the key for surrogates. Two keys that differ only in which lone surrogate the
 bucket, which is harmless. **Rejected:** rejecting such keys — the evaluation path never throws and
 would have to pick a bucket anyway; leaving Java's `?` — the SDK would need a custom encoder to
 match it, in every runtime it ever ships for.
+
+---
+
+## ADR-019 — Operator shapes, and negative operators as exact negations
+
+FR-RUL-002 gives every rule a value list and FR-RUL-007 to FR-RUL-009 define equality, absence and
+the string-only operators, but nothing says what `EQUALS` does with two values, or whether
+`NOT_EQUALS` matches an attribute of another type; both are questions the SDK will otherwise answer
+on its own. **Decision:** `EQUALS`, `NOT_EQUALS`, `CONTAINS`, `STARTS_WITH` and `ENDS_WITH` take
+exactly one match value; `IN` and `NOT_IN` take one or more, all of one type. A rule outside those
+shapes — or with an operator name not spelled exactly as in FR-RUL-003, no attribute, or a match
+value that is not a string, number or boolean — is malformed. For an attribute that is present,
+`NOT_EQUALS` and `NOT_IN` are the exact negations of `EQUALS` and `IN`, so `1 NOT_EQUALS "1"`
+matches, because under FR-RUL-007 the two are not equal; absence is the only special case
+(FR-RUL-008), and an attribute of an unsupported type counts as absent (FR-RUL-006). The cases live
+in `backend/src/test/resources/fixtures/comparison-semantics.json`, which both implementations run.
+**Consequences:** management API validation (FR-RUL-010) has an exact definition to enforce, and
+"not equal" means not equal. **Rejected:** "any of" semantics for several values on a
+single-valued operator — reasonable, but adopting it later changes the meaning of no stored rule,
+whereas retreating from it would; a wrongly typed attribute never matching any operator — it would
+make `NOT_EQUALS` mean something narrower than its name, in a way no reader of FR-RUL-007 would
+guess.
