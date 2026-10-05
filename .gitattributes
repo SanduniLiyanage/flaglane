@@ -2,3 +2,7 @@
 # including Windows machines with core.autocrlf=true.
 gradlew  text eol=lf
 *.sh     text eol=lf
+
+# Test fixtures are read by both the Java and the TypeScript suites. A CRLF checkout would end
+# every key in '\r' for whichever reader does not strip it, and the two would hash different keys.
+backend/src/test/resources/fixtures/** text eol=lf
