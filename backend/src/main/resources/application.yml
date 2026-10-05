@@ -15,6 +15,27 @@ spring:
     user: ${FLAGLANE_DB_MIGRATOR_USER:flaglane_migrator}
     password: ${FLAGLANE_DB_MIGRATOR_PASSWORD}
 
+  jpa:
+    # Flyway owns the schema. Hibernate checks its mappings against it at startup and changes
+    # nothing, so a mapping that drifts from a migration fails the deploy, not a request.
+    hibernate:
+      ddl-auto: validate
+    # A transaction ends when the service method returns. Lazy loading from a controller would
+    # hide queries outside it.
+    open-in-view: false
+
+  mvc:
+    # RFC 9457 Problem Details for every error the framework raises (docs/API.md).
+    problemdetails:
+      enabled: true
+
+flaglane:
+  security:
+    jwt:
+      # HS256 signing key for dashboard access tokens (ADR-021). No default: an unset secret fails
+      # startup with the variable named. At least 32 bytes; `openssl rand -base64 48` makes one.
+      secret: ${FLAGLANE_JWT_SECRET}
+
 management:
   endpoints:
     web:

@@ -434,3 +434,26 @@ flag's owner chose as its resting state, never a value some later step happened 
 7 of the architecture document is to be corrected to match. **Rejected:** skipping the rule — if the
 broken rule was the one excluding a group, say `country IN ["XX"] → false`, skipping it hands that
 group whatever the rollout gives them, which is exactly the population the rule existed to keep out.
+
+---
+
+## ADR-021 — Dashboard tokens through Spring Security's resource server, HS256
+
+FR-ACC-002 needs a JWT issued at sign-in and verified on every `/api/**` request, and the stack named
+no library for it. **Decision:** `spring-boot-starter-oauth2-resource-server`, whose Nimbus
+integration is managed by the Spring Boot BOM: verification is Spring Security's own bearer token
+filter with a decoder pinned to HS256 that requires `exp`, checks it against the injected `Clock`
+with 30 seconds of skew, and requires `iss` to be `flaglane`; issuance is the matching `JwtEncoder`.
+The key is one symmetric secret from `FLAGLANE_JWT_SECRET`, at least 32 bytes, with no default.
+Alongside it: email addresses are stored trimmed and lower-cased, so one person cannot hold two
+accounts by capitalisation; a new password must be at least 15 characters (NIST SP 800-63B-4's
+floor for a single factor) and at most 72 bytes of UTF-8, the most bcrypt reads, with no
+composition rules; and registration writes no audit entry, because `audit_entries.project_id` is
+not nullable and the action vocabulary has no account event — FR-AUD-001 is the record of changes
+to projects, which the SRS will state as erratum E-037. **Consequences:** no JWT code of Flaglane's
+own and no second JWT library. One secret both signs and verifies, which is sound while the issuer
+and the verifier are the same single instance (ADR-013); rotating it signs every user out. The
+password limits are the easy ones to relax later: loosening breaks no stored password, tightening
+would. **Rejected:** jjwt — a second library for what the starter already carries; RS256 — a key
+pair to manage for a token only this process ever reads; server-side sessions — the dashboard API is
+stateless by design, and revocation is ADR-012's deferred work, not this one's.

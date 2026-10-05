@@ -52,6 +52,19 @@ class OpenApiEndpointTest {
   }
 
   @Test
+  void documentDescribesTheAuthEndpointsAndTheBearerScheme() throws Exception {
+    JsonNode body = json.readTree(http.getForEntity("/v3/api-docs", String.class).getBody());
+
+    assertThat(body.path("paths").has("/api/auth/register")).isTrue();
+    assertThat(body.path("paths").has("/api/auth/login")).isTrue();
+    assertThat(body.at("/paths/~1api~1auth~1login/post/responses").has("401")).isTrue();
+    assertThat(body.at("/components/securitySchemes/bearer-jwt/scheme").asText())
+        .isEqualTo("bearer");
+    assertThat(body.at("/components/securitySchemes/bearer-jwt/bearerFormat").asText())
+        .isEqualTo("JWT");
+  }
+
+  @Test
   void swaggerUiIsLive() {
     ResponseEntity<String> response = http.getForEntity("/swagger-ui/index.html", String.class);
 

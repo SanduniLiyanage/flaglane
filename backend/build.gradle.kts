@@ -23,15 +23,18 @@ repositories {
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
-    // Provides the DataSource that Flyway migrates and the application queries. Becomes a
-    // transitive dependency of spring-boot-starter-data-jpa in slice 1.7; drop this line then.
-    implementation("org.springframework.boot:spring-boot-starter-jdbc")
+    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation("org.springframework.boot:spring-boot-starter-validation")
+    implementation("org.springframework.boot:spring-boot-starter-security")
+    // JWT verification and issuance through Spring Security's own Nimbus integration (ADR-021).
+    implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
     implementation("org.flywaydb:flyway-database-postgresql")
     // Not in the Spring Boot BOM. The 2.x line targets Spring Boot 3; 3.x targets Spring Boot 4.
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17")
     runtimeOnly("org.postgresql:postgresql")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.testcontainers:postgresql")
 }
@@ -44,6 +47,9 @@ tasks.withType<Test> {
         "flaglane.postgres.initScript",
         rootDir.resolve("docker/postgres/init-roles.sh").absolutePath,
     )
+    // The application reads its JWT signing secret from the environment with no default, so the
+    // test JVM is given one the same way a deployment is. It signs nothing outside a test run.
+    environment("FLAGLANE_JWT_SECRET", "test-only-signing-secret-never-used-outside-tests")
 }
 
 jacoco {
