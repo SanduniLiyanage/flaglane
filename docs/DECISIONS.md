@@ -511,3 +511,23 @@ ADR-006 and NFR-PER-004 already describe. **Rejected:** folding the cache into `
 make the flag package depend on targeting and keys, and put the hot path inside a write-side
 package; folding it into `streaming/` — serving must work with streaming cut (the roadmap's first
 cut), so it cannot live in the package that cut would remove.
+
+---
+
+## ADR-025 — The serving API accepts cross-origin requests from any origin
+
+Client keys exist so that a browser can download its environment's ruleset (FR-KEY-005), but
+`/sdk/**` sent no CORS headers, so a page on any other origin than the API's could not read the
+response, and a browser SDK could not read the ETag it needs for conditional requests.
+**Decision:** the `/sdk/**` chain allows `GET` and `POST` from any origin, with the
+`Authorization`, `If-None-Match` and `Content-Type` request headers, exposes `ETag` and
+`Retry-After`, and never allows credentials. The dashboard API's chain allows no cross-origin
+request at all. **Consequences:** a client key works from whichever site embeds it, which is what a
+publishable key is. Allowing every origin grants no site anything: the key travels in a header the
+page sets itself rather than in a cookie a browser attaches on its own, so another site can do with
+the API only what anyone holding the key already could, and the key's own type limits that to
+client-side-visible flags with no overrides (FR-KEY-008). **Rejected:** a per-key list of allowed
+origins — it protects nothing a public key can be used for, since the key can be called from a
+server or a script outside any browser, and it is a setting every user would have to get right
+before the SDK worked at all; allowing credentials — there are none to allow, and enabling them would
+forbid the wildcard.
