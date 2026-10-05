@@ -46,10 +46,21 @@ import org.springframework.context.annotation.Configuration;
     scheme = "bearer",
     bearerFormat = "JWT",
     description = "An access token from `POST /api/auth/login`, valid for 8 hours.")
+@SecurityScheme(
+    name = OpenApiConfiguration.SDK_KEY,
+    type = SecuritySchemeType.HTTP,
+    scheme = "bearer",
+    bearerFormat = "flg_srv_… or flg_cli_…",
+    description =
+        "An API key issued for one environment. A server key reads every flag; a client key"
+            + " reads client-side-visible flags only, with no user overrides.")
 public class OpenApiConfiguration {
 
   /** The scheme name a {@code /api/**} endpoint refers to with {@code @SecurityRequirement}. */
   public static final String BEARER_JWT = "bearer-jwt";
+
+  /** The scheme name an {@code /sdk/**} endpoint refers to. */
+  public static final String SDK_KEY = "sdk-key";
 
   private static final Pattern PATH_VARIABLE = Pattern.compile("\\{([^}/]+)}");
 

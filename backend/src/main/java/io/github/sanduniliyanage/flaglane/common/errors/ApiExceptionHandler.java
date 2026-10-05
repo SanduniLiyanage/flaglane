@@ -1,13 +1,21 @@
 package io.github.sanduniliyanage.flaglane.common.errors;
 
+import java.net.SocketException;
+import java.sql.SQLException;
+import java.sql.SQLNonTransientConnectionException;
+import java.sql.SQLTransientConnectionException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.CannotCreateTransactionException;
+import org.springframework.transaction.TransactionException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -37,6 +45,46 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
   ProblemDetail credentialsRejected(CredentialsRejectedException e) {
     return problem(HttpStatus.UNAUTHORIZED, e.getMessage());
   }
+
+  /**
+   * A data access or transaction failure. If the database is unreachable, the management API cannot
+   * work and says so with a 503 (docs/ARCHITECTURE.md section 7); the serving API never reaches
+   * here, because it never asks the database. Anything else is a 500 that says nothing about the
+   * query that failed.
+   *
+   * <p>Unreachability is read from the cause chain rather than the outer type. A connection that
+   * dies mid-transaction surfaces as a failure to roll back, which Spring reports in place of the
+   * query's own error.
+   */
+  @ExceptionHandler({DataAccessException.class, TransactionException.class})
+  ProblemDetail dataAccessFailed(RuntimeException e) {
+    if (isDatabaseUnreachable(e)) {
+      return problem(
+          HttpStatus.SERVICE_UNAVAILABLE, "The database is unavailable; try again shortly");
+    }
+    logger.error("Data access failed", e);
+    return problem(HttpStatus.INTERNAL_SERVER_ERROR, "The request could not be completed");
+  }
+
+  static boolean isDatabaseUnreachable(Throwable failure) {
+    Throwable cause = failure;
+    for (int depth = 0; cause != null && depth < 20; depth++, cause = cause.getCause()) {
+      if (cause instanceof DataAccessResourceFailureException
+          || cause instanceof CannotCreateTransactionException
+          || cause instanceof SQLTransientConnectionException
+          || cause instanceof SQLNonTransientConnectionException
+          || cause instanceof SocketException
+          || (cause instanceof SQLException sql
+              && sql.getSQLState() != null
+              && sql.getSQLState().startsWith(CONNECTION_EXCEPTION_CLASS))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** SQLSTATE class 08: connection exception, in the SQL standard and in PostgreSQL. */
+  private static final String CONNECTION_EXCEPTION_CLASS = "08";
 
   /**
    * Adds an {@code errors} member naming each invalid field and what is wrong with it. The rejected
