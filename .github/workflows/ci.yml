@@ -3,7 +3,8 @@
 # `check` runs spotlessCheck, SpotBugs, the tests, and the JaCoCo gate that fails the
 # build below 90% line coverage in evaluation/. The tests run against a real
 # PostgreSQL through Testcontainers, which finds the runner's Docker daemon at its
-# default socket with no setup step. The SDK gate arrives with slice 4.2.
+# default socket with no setup step. The SDK job type-checks, tests and builds sdk/;
+# its parity suite reads the same fixtures under backend/ that the server's does.
 name: CI
 
 on:
@@ -47,6 +48,27 @@ jobs:
             backend/build/reports/
             backend/build/test-results/
           if-no-files-found: ignore
+
+  sdk:
+    name: SDK types and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: sdk
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: sdk/package-lock.json
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
 
   image:
     name: Build image

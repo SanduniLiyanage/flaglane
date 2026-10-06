@@ -152,11 +152,10 @@ are not evidence.
 5. SDK test failures or type errors
 6. A Docker image that does not build
 
-Gates 1, 2, 3, 4 and 6 are live. Gate 4 is `jacocoTestCoverageVerification`, which `check` runs:
-it fails below 90% line coverage in `evaluation/` and nowhere else, and it was confirmed to fail
-when raised above the actual figure. Gate 5 is wired when the SDK lands in slice 4.2; until then
-the workflow says so in its header comment rather than pretending to enforce a package that does
-not exist.
+All six gates are live. Gate 4 is `jacocoTestCoverageVerification`, which `check` runs: it
+fails below 90% line coverage in `evaluation/` and nowhere else, and it was confirmed to fail when
+raised above the actual figure. Gate 5 is the workflow's SDK job: `npm ci`, then `tsc` with no
+emit, then Vitest, then the build, on Node 24.
 
 Tests need Docker for Testcontainers. The `ubuntu-latest` runner ships with Docker Engine
 running and the runner user in the `docker` group, so Testcontainers finds the daemon at its
