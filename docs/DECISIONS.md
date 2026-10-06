@@ -531,3 +531,27 @@ origins — it protects nothing a public key can be used for, since the key can 
 server or a script outside any browser, and it is a setting every user would have to get right
 before the SDK worked at all; allowing credentials — there are none to allow, and enabling them would
 forbid the wildcard.
+
+---
+
+## ADR-026 — The TypeScript SDK: no dependencies, polling, and nothing that can fail the caller
+
+The SDK needed a toolchain, a public shape and an update mechanism, and the stack named only
+"TypeScript, published to npm". **Decision:** `@flaglane/sdk` is ES modules only, compiled by
+TypeScript 7's `tsc` and tested with Vitest 5, with no runtime dependencies: it uses `fetch`,
+`TextEncoder` and `AbortController`, so one build runs in browsers and in Node 20 and later. Its
+engine mirrors the server's definition for definition, including what counts as a malformed rule,
+and is held to it by the shared fixtures of suite 9. The context is flat — `{ key, ...attributes }`,
+as the README always showed — and `isOn(flagKey, context, fallback = false)` evaluates in memory.
+Updates arrive by polling `GET /sdk/config` every five seconds with the ruleset's ETag, so an
+unchanged ruleset costs an empty `304`; while Flaglane is unreachable the SDK backs off
+exponentially with jitter up to 30 seconds, honours a 503's `Retry-After`, and keeps the last
+ruleset. `init` resolves on the first ruleset or after its timeout, whichever comes first, and never
+rejects; `isOn` never throws; no timer keeps a Node process alive. **Consequences:** an application
+cannot be broken by the SDK, whatever the network or its own input does; a change takes up to five
+seconds to arrive until a stream exists; and an attribute named `key` cannot be targeted, since the
+name is the user key. **Rejected:** a CommonJS build alongside — a second artefact to keep identical
+for an ecosystem that has moved on, and easy to add later; a bundler — nothing to bundle without
+dependencies; a nested `{ key, attributes }` context — what the REST API takes, but more ceremony at
+every call site, and the README had promised the flat one; an `init` that rejects when Flaglane is
+unreachable — the one behaviour that would make Flaglane's outage the application's.

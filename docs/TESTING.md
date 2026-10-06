@@ -99,12 +99,17 @@ Implemented in `NeverThrowsTest`, with the rate limiting of the warnings in
 ### 8. SDK offline behaviour — FR-SDK-005
 Initialise the SDK, load a ruleset, then make the server unreachable. Assert evaluation continues
 on the last ruleset. Restart with the server still unreachable and assert the caller's fallback is
-returned, without an exception and without blocking beyond the init timeout.
+returned, without an exception and without blocking beyond the init timeout. Implemented in
+`sdk/test/offline.test.ts`, against a real local HTTP server that is stopped, hung, failing or
+serving something that is not a ruleset.
 
 ### 9. Server and SDK parity — FR-SDK-007
 Both implementations evaluate the same fixture set in `backend/src/test/resources/fixtures/` and
 must agree on every case. Two implementations of one specification will drift; this is the test
-that catches it.
+that catches it. Implemented in `ParityFixturesTest` and
+`sdk/test/parity.test.ts`, over `evaluation-parity.json`, `comparison-semantics.json` and
+`bucketing-vectors.json`; `ParityFixtureShapeTest` keeps the fixture rulesets in the shape the
+server actually serialises.
 
 ### 10. Audit immutability — FR-AUD-002
 Attempt `UPDATE`, `DELETE` and `TRUNCATE` against `audit_entries`, both as the application role and
