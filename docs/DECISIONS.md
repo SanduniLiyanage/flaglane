@@ -87,6 +87,9 @@ number, and an unnumbered limit is not a limit.
 whether it arrives by design or by triage; five seconds is an accepted degradation, and it is
 recorded here so that the first thing on the cut list does not silently contradict a decision.
 
+**Amended by ADR-027.** The cut was invoked for v0.1: there is no stream, and SDKs poll every five
+seconds. The decision above stands as the design for when streaming is built.
+
 ---
 
 ## ADR-005 — Apache License 2.0
@@ -555,3 +558,25 @@ for an ecosystem that has moved on, and easy to add later; a bundler — nothing
 dependencies; a nested `{ key, attributes }` context — what the REST API takes, but more ceremony at
 every call site, and the README had promised the flat one; an `init` that rejects when Flaglane is
 unreachable — the one behaviour that would make Flaglane's outage the application's.
+
+---
+
+## ADR-027 — Cut list item 1 invoked: no stream in v0.1, five-second polling
+
+The roadmap's first cut, written before it was needed, takes Server-Sent Events out under time
+pressure: slices 4.1 (the stream endpoint), 4.3 (the SDK's subscription) and 4.4 (stream reconnect).
+Six weeks of work was estimated at 33.5 days, and the SDK, its parity suite and the demo
+application — all on the never-cut list — had not been built. **Decision:** the cut is invoked for
+v0.1. There is no `GET /sdk/stream`; the SDK polls `GET /sdk/config` every five seconds with the
+ETag of the ruleset it holds, which ADR-004's amendment names as the accepted degradation rather
+than the 30-second polling it rejects. **Consequences:** a change reaches SDKs within the poll
+interval plus one request — about five seconds, not under one — so NFR-PER-003's sub-second target
+does not hold and is restated (E-039), milestone 4's exit criterion becomes "within five seconds",
+and the README says "polled every five seconds" where it said "live stream". A kill switch still
+takes effect without a redeploy, in seconds. An unchanged ruleset costs one empty `304` per SDK per
+five seconds. Nothing was removed: the stream had not been built, and the SDK has polled from its
+first version, so the cut is a decision about what v0.1 promises. Streaming returns as ADR-004
+designs it once v0.1 ships; the SDK's polling stays as its fallback. **Rejected:** keeping the stream
+and cutting the demo application or the parity suite — both are on the never-cut list, because
+they are the claims the project rests on; cutting to 30-second polling — the worst case ADR-004
+calls unacceptable for a kill switch.

@@ -109,8 +109,9 @@ double-quoted in every statement and mapped as `@Column(name = "\"values\"")` in
 transaction as any write that changes what the environment serves: a configuration change, a rule
 or override replacement, a flag creation, a visibility change, an archive or a restore.
 
-It is the source of the ETag on `GET /sdk/config` and of the version in the SSE change event. Both
-were specified before this column existed, with nothing behind them: `flag_configs.version` is a
+It is the source of the ETag on `GET /sdk/config`, which polling SDKs send back to learn whether
+anything changed, and of the version the change event will carry once streaming exists (ADR-027).
+Both were specified before this column existed, with nothing behind them: `flag_configs.version` is a
 per-row counter and cannot answer "has this environment changed".
 
 The ETag is derived from `(ruleset_version, key_type)`, never from the version alone, because a

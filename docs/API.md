@@ -198,7 +198,7 @@ Auth: `Authorization: Bearer <sdk key>`. Rate limited per key (NFR-SEC-005) — 
 | --- | --- | --- |
 | GET | `/sdk/config` | Full ruleset for the key's environment, with ETag (FR-SRV-001) |
 | POST | `/sdk/evaluate` | Server-side evaluation for thin clients (FR-SRV-002) |
-| GET | `/sdk/stream` | SSE change notifications (FR-SRV-003) |
+| GET | `/sdk/stream` | SSE change notifications (FR-SRV-003). **Not in v0.1**: cut for five-second polling (ADR-027) |
 
 Both built endpoints answer from memory and never query the database, so they keep working while
 it is down (NFR-PER-004).
@@ -292,7 +292,11 @@ flags per request.
 client must not get an HTTP error where a thick client gets its fallback. A flag that exists but
 is not readable by this key reports `FLAG_NOT_FOUND` too, so the response does not disclose it.
 
-### Stream
+### Polling, and the stream that is not in v0.1
+
+In v0.1 an SDK learns of a change by polling: every five seconds it sends `GET /sdk/config` with the
+ETag it holds as `If-None-Match`, and gets an empty 304 until the ruleset changes. Streaming was the
+roadmap's first cut (ADR-027). When it is built, it is as follows, and polling stays as its fallback:
 
 ```
 event: ruleset-changed

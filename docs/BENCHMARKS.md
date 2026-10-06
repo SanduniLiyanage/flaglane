@@ -2,7 +2,7 @@
 
 **Nothing has been measured yet.** This file exists so that the links to it from
 `docs/TESTING.md` and `docs/ROADMAP.md` resolve, and so that the method is agreed before any
-number is recorded. It is filled in as slices 2.7, 2.8 and 4.10 land.
+number is recorded. Slices 2.7 and 2.8 have landed without their figures; they are owed, with 4.10's.
 
 A number without a method is marketing. Every row below records how it was produced, on what
 hardware, and against which commit, or it does not go in.
@@ -13,7 +13,7 @@ hardware, and against which commit, or it does not go in.
 | --- | --- | --- | --- |
 | NFR-PER-001 | In-process evaluation, 1,000 flags loaded, 50 rules on the flag under evaluation | p99 under 25 µs | 2.7 |
 | NFR-PER-002 | `GET /sdk/config` served from cache | p99 under 50 ms | 2.8 |
-| NFR-PER-003 | Dashboard change to SSE delivery at a connected SDK | p95 under 1 s | 4.10 |
+| NFR-PER-003 | A change through the management API to a polling SDK using it | within 5 s, the poll interval (E-039) | 4.10 |
 
 NFR-PER-001's budget was tightened from 1 ms during the specification review (erratum E-013). A
 hash and a map lookup cannot approach a millisecond, so the original target was satisfied by

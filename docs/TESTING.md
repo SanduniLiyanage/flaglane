@@ -136,7 +136,8 @@ marketing.
 - In-process evaluation with 1,000 flags and 50 rules on the flag under evaluation: report p50,
   p95, p99 (NFR-PER-001).
 - `GET /sdk/config` served from cache: report p99 (NFR-PER-002).
-- Dashboard change to SSE delivery: report p95 (NFR-PER-003).
+- A change to a polling SDK picking it up: report p95 (NFR-PER-003; five seconds since the streaming
+  cut, ADR-027).
 
 Results live in `docs/BENCHMARKS.md` with the hardware and method stated. Numbers without a method
 are not evidence.

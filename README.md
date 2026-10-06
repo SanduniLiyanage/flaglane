@@ -3,8 +3,7 @@
 Feature flags and remote configuration for teams that want to ship code and decide later who sees it.
 
 Flaglane lets you deploy a feature turned off, switch it on for a few users, roll it out to a
-percentage of traffic, and turn it off again in under a second — without redeploying your
-application.
+percentage of traffic, and turn it off again within seconds — without redeploying your application.
 
 ## Why
 
@@ -33,7 +32,8 @@ if (flags.isOn("new-checkout", { key: user.id, country: user.country })) {
 That is the last deploy you need. From then on, the rollout is controlled from the dashboard.
 
 The SDK downloads the full ruleset for its environment once at startup, evaluates flags in memory
-in microseconds, and receives updates over a live stream. **If Flaglane is unreachable, your
+in microseconds, and is kept up to date by polling every five seconds, at the cost of an empty
+response while nothing has changed. **If Flaglane is unreachable, your
 application keeps running** on the last known ruleset, and failing that, on the default value you
 specified in code. Flaglane being down must never take your application down.
 
@@ -45,7 +45,8 @@ specified in code. Flaglane being down must never take your application down.
 - Consistent bucketing: a user's assignment is stable across servers, restarts and redeploys
 - Kill switch: one click disables a flag everywhere
 - In-process evaluation (fast) and remote evaluation (for thin clients)
-- Live updates over Server-Sent Events, with polling fallback
+- Changes reach running applications within five seconds, by polling. Streaming over Server-Sent
+  Events is designed but not in v0.1 (ADR-027)
 - Projects and environments with isolated API keys
 - Separate server-side and client-side keys, so browser keys cannot read backend-only flags
 - Append-only audit log of every change
@@ -62,10 +63,10 @@ Flaglane is a flag engine, not an experimentation platform. It does not include:
 - Role-based access control, SSO, or approval workflows
 - Scheduled flag changes
 - SDKs beyond TypeScript
-- Horizontal scaling. **v0.x runs as a single API instance.** The ruleset cache and the stream
-  registry both live in process, so a second instance would serve stale flags and its connected
-  SDKs would never be told anything changed. PostgreSQL `LISTEN`/`NOTIFY` is the intended fix and
-  is on the roadmap; until it ships, run one instance (ADR-013)
+- Horizontal scaling. **v0.x runs as a single API instance.** The ruleset cache lives in process,
+  so a second instance would serve flags up to a minute stale, until it reconciles with the
+  database. PostgreSQL `LISTEN`/`NOTIFY` is the intended fix and is on the roadmap; until it ships,
+  run one instance (ADR-013)
 - Server-side sign-out. Dashboard sessions are a single access token with no revocation list, so
   signing out discards it in the browser and it stays valid until it expires (ADR-012)
 

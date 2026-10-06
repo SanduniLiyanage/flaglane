@@ -8,7 +8,7 @@ Dashboard (React)  ──JWT──►  Management API  ─┐
 Your application               Serving API  ──┘         │
   └─ Flaglane SDK  ──API key──►     │                   │
          │                          ▼                   ▼
-         └────── SSE stream ◄── Ruleset cache ◄── change events
+         └── polls every 5 s ──► Ruleset cache ◄── rebuilt after each write
 ```
 
 Two API surfaces, deliberately separate (see ADR-006):
@@ -31,7 +31,7 @@ The naive design has the SDK call the server for every flag check. That puts a n
 in the customer's request path and makes Flaglane's availability their availability.
 
 Instead: the SDK downloads the **entire ruleset** for its environment once, evaluates locally in
-memory, and receives updates over a stream. Consequences:
+memory, and re-checks it every five seconds. Consequences:
 
 - Evaluation is a hash and a few comparisons — microseconds, no I/O.
 - Flaglane can be down and applications keep working on the last ruleset.
@@ -39,7 +39,9 @@ memory, and receives updates over a stream. Consequences:
   (FR-KEY-005) and no user overrides at all (FR-KEY-008). Filtering by flag is not enough: an
   override's user key is a real user identifier, and shipping the override list tells every
   browser which specific people you have been targeting.
-- Changes are not instant by default, so a push channel is required (FR-STR-001).
+- Changes are not instant. In v0.1 the SDK polls with the ETag of the ruleset it holds, so a change
+  arrives within about five seconds and an unchanged ruleset costs an empty 304; the stream that
+  would make it sub-second was cut for v0.1 (ADR-027, section 5).
 
 `POST /sdk/evaluate` exists for thin clients that cannot hold a ruleset, and runs the identical
 engine server-side.
@@ -159,21 +161,28 @@ problem to solve later, and the decision gets an ADR.
 
 ## 5. Change propagation
 
-A write commits, the cache rebuilds, and a change event publishes to the stream registry, which
-holds open SSE connections keyed by environment.
+A write commits and the cache rebuilds the environment's snapshot before the request that made the
+change returns. From there, in v0.1, the change reaches SDKs by polling: every five seconds each SDK
+sends `GET /sdk/config` with the ETag of the ruleset it holds, and gets either an empty 304 or the
+new ruleset, which it swaps in whole (FR-SDK-003). A change is in effect everywhere within about five
+seconds. While the server is unreachable the SDK backs off with jitter up to 30 seconds and keeps
+answering from the last ruleset (FR-SDK-004), so an outage degrades to staleness, never to errors.
 
-Server-Sent Events rather than WebSockets: the traffic is one-directional, SSE is plain HTTP so it
-crosses proxies without upgrade negotiation, and browsers reconnect automatically (ADR-004). The
-SDK also polls as a fallback, so a blocked stream degrades to eventual consistency rather than
-staleness forever (FR-SDK-004). Connections are held by `SseEmitter` so they do not each occupy a
-servlet thread, with a stated ceiling per key and per environment (FR-STR-004).
+**This is a cut, and it is stated as one.** The design is Server-Sent Events (ADR-004): one
+long-lived connection per SDK carrying a version-only change event, which would make propagation
+sub-second. It was the roadmap's first cut and was invoked for v0.1 (ADR-027), keeping the SDK, its
+parity suite and the demo application, which are on the never-cut list. Five seconds rather than
+the thirty ADR-004 rejects is the accepted degradation for a kill switch. When streaming is built it
+uses `SseEmitter`, so connections do not each occupy a servlet thread, with a stated ceiling per key
+and per environment (FR-STR-004), and polling stays as its fallback.
 
 ### One instance, and why that is written down
 
-**Both the cache rebuild and the stream registry are in process.** Run two instances behind a load
-balancer and a write on instance A never reaches instance B: B serves a stale ruleset until it
-restarts, and every SDK holding a stream to B is never told anything changed. Half the traffic
-would get a kill switch that does not kill, silently, in a system that otherwise looks healthy.
+**The cache rebuild is in process** — as the stream registry will be. Run two instances behind a
+load balancer and a write on instance A is not seen by instance B until B's once-a-minute
+reconciliation compares versions with the database; until then every SDK polling B keeps getting
+the old ruleset. For up to a minute, half the traffic would get a kill switch that has not killed,
+silently, in a system that otherwise looks healthy.
 
 So v0.x is a single instance, deliberately, and it is recorded in ADR-013 rather than left as a
 property nobody stated. The intended fix is PostgreSQL `LISTEN`/`NOTIFY` on commit — no new
@@ -212,7 +221,7 @@ Isolation is structural:
 | Engine exception | `fallthroughValue` returned, warning logged, never propagated |
 | Database down | Serving continues from cache, including key authentication; management API returns 503; readiness stays up. One exception: the first management request to borrow a pooled connection that died with the database gets a 500, because the pool reports only that the connection is closed |
 | Flaglane unreachable from SDK | Last known ruleset, then code-level fallback |
-| Stream dropped | Backoff reconnect with jitter, polling meanwhile |
+| A poll fails | Last ruleset kept; retried with exponential backoff and jitter up to 30 s, or after a 503's `Retry-After` |
 
 The last two are the product's central promise. Everything else in this document is negotiable.
 

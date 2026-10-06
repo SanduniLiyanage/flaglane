@@ -11,7 +11,8 @@ runtime.
 
 Out of scope for v0.x: experimentation statistics, multivariate flags, RBAC, SSO, approval
 workflows, scheduled changes, SDKs other than TypeScript, regular-expression targeting operators
-(E-009), revocable sessions (E-028), and running more than one API instance (ADR-013).
+(E-009), revocable sessions (E-028), running more than one API instance (ADR-013), and, for v0.1,
+streaming changes to SDKs over Server-Sent Events: SDKs poll every five seconds instead (E-039).
 
 ## 2. Actors
 
@@ -19,7 +20,7 @@ workflows, scheduled changes, SDKs other than TypeScript, regular-expression tar
 | --- | --- |
 | Dashboard user | A developer who signs in to create and change flags |
 | SDK client | An application process holding an API key |
-| System | Background work: cache rebuild, stream broadcast |
+| System | Background work: cache rebuild, key last-use flush |
 
 ## 3. Domain glossary
 
@@ -74,8 +75,8 @@ workflows, scheduled changes, SDKs other than TypeScript, regular-expression tar
   encoded, behind a type marker: `flg_srv_…` or `flg_cli_…` (format in `docs/DATABASE.md`). The
   256 bits of entropy are what make a fast hash the right choice rather than bcrypt (ADR-007);
   the marker is for humans and secret scanners and is never trusted for authorisation.
-- **FR-KEY-003** A key is revocable. A revoked key is rejected immediately, including on
-  already-open streams.
+- **FR-KEY-003** A key is revocable. A revoked key is rejected immediately, on every request after
+  the revoke returns. Once streaming exists, its open streams close too (FR-STR-003).
 - **FR-KEY-004** A `server` key reads all flags in its environment.
 - **FR-KEY-005** A `client` key reads only flags marked client-side visible. Browser keys are
   public by nature and must not expose backend-only flags.
@@ -206,6 +207,9 @@ here is a place they will disagree, silently and in production (E-011).
   `RULE_MATCH`, `ROLLOUT`, `FALLTHROUGH`, `FLAG_NOT_FOUND` and `ERROR`. A flag the key is not
   entitled to read is reported as `FLAG_NOT_FOUND`, so the response does not disclose that it
   exists. Request and response schemas are in `docs/API.md`.
+**Not in v0.1** (E-039, ADR-027). FR-SRV-003 and FR-STR-001 to FR-STR-004 specify the stream as it
+will be built after v0.1; until then no `/sdk/stream` exists and SDKs poll (FR-SDK-003).
+
 - **FR-SRV-003** `GET /sdk/stream` opens a Server-Sent Events connection.
 - **FR-STR-001** Any change to a flag configuration in an environment publishes a change event to
   every open stream for that environment, and to no other environment.
@@ -222,9 +226,11 @@ here is a place they will disagree, silently and in production (E-011).
 - **FR-SDK-001** `init()` fetches the ruleset, then resolves. It exposes a timeout after which it
   resolves anyway in fallback mode rather than blocking application startup.
 - **FR-SDK-002** `isOn(flagKey, context, fallback)` evaluates in process with no network call.
-- **FR-SDK-003** The SDK subscribes to the stream and swaps in a new ruleset atomically.
-- **FR-SDK-004** If the stream drops, the SDK reconnects with exponential backoff and jitter, and
-  polls `GET /sdk/config` meanwhile.
+- **FR-SDK-003** The SDK polls `GET /sdk/config` every five seconds, sending the ETag of the ruleset
+  it holds, and swaps in a changed ruleset atomically. An unchanged ruleset costs an empty 304
+  (E-039).
+- **FR-SDK-004** If a poll fails, the SDK retries with exponential backoff and jitter, up to 30
+  seconds, honouring a 503's `Retry-After`, and serves the last ruleset meanwhile.
 - **FR-SDK-005** If the service is unreachable, the SDK serves the last known ruleset. With no
   ruleset ever fetched, it returns the caller-supplied fallback.
 - **FR-SDK-006** The SDK never throws from `isOn()`.
@@ -266,9 +272,10 @@ here is a place they will disagree, silently and in production (E-011).
   the flag under evaluation. A one-millisecond budget is unfailable — a hash and a map lookup
   cannot approach it — and a measurement that cannot fail is not evidence.
 - **NFR-PER-002** `GET /sdk/config`: p99 under 50 ms served from cache, measured locally.
-- **NFR-PER-003** A dashboard change reaches connected SDKs in under 1 second at p95, on the
-  single-instance deployment v0.x supports (ADR-013). Across instances this does not hold at all
-  until `LISTEN`/`NOTIFY` lands in slice 4.8: a write on one instance never reaches another.
+- **NFR-PER-003** A change reaches running SDKs within the poll interval, five seconds, plus one
+  request, on the single-instance deployment v0.x supports (ADR-013). Under a second needs the
+  stream, which is not in v0.1 (E-039). Across instances this does not hold at all until
+  `LISTEN`/`NOTIFY` lands in slice 4.8: a write on one instance never reaches another.
 - **NFR-PER-004** No `/sdk/**` request performs a database query on the request path. The engine
   is a pure function over an in-memory ruleset; key authentication is served from the in-memory key
   cache (FR-KEY-007); `last_used_at` is flushed asynchronously (FR-KEY-006). "Evaluation path"
@@ -286,7 +293,10 @@ here is a place they will disagree, silently and in production (E-011).
   with `Retry-After`. `GET /sdk/stream` is counted once when the connection is established and
   never per event — a stream is one request that lasts hours, and a per-request limiter would
   either close it or be meaningless. Buckets are per instance, which is exact while Flaglane runs
-  as a single instance and is a limitation to revisit with the multi-instance work.
+  as a single instance and is a limitation to revisit with the multi-instance work. With SDKs
+  polling every five seconds, each SDK process makes twelve requests a minute, so one key shared
+  by fifty processes reaches the default limit: the limit must be sized for polling fleets when it
+  is built, and a `304` should cost less than a full answer (E-039).
 
 ### Reliability
 - **NFR-REL-001** Service unavailability degrades applications to last-known-good, then to
@@ -349,3 +359,4 @@ Corrections to this document, recorded rather than silently edited.
 | E-036 | NFR-PER-003, NFR-REL-002 | Both are qualified as holding on a single instance, with the multi-instance fix named and scheduled. | The ruleset cache and the stream registry are both in process, so a second instance behind a load balancer serves stale flags and never notifies its SDKs. Nothing in ten documents said Flaglane was single-instance, while "self-hostable" invites scaling it. |
 | E-037 | FR-AUD-001 | Scoped to mutations of a project or anything in it. Account registration is not audited. | `audit_entries.project_id` is not nullable and the action vocabulary has no account event, so "every mutation" could not include registering, which belongs to no project. Making the column nullable would let every other event be written without its project by mistake (ADR-021). |
 | E-038 | FR-ENV-003 | A deleted environment's audit entries keep its id instead of having it blanked. | Blanking was `ON DELETE SET NULL`, which is an UPDATE of `audit_entries`, and FR-AUD-002's append-only trigger refuses every UPDATE. No environment that had ever been audited — every one — could be deleted; reproduced against PostgreSQL before the endpoint was built. `V4__audit_keeps_deleted_references.sql` drops the two foreign keys instead (ADR-022). |
+| E-039 | FR-SDK-003, FR-SDK-004, NFR-PER-003, FR-KEY-003, NFR-SEC-005; FR-SRV-003 and FR-STR-001 to FR-STR-004 deferred | Server-Sent Events are not in v0.1: SDKs poll `GET /sdk/config` every five seconds with the ruleset's ETag, and back off with jitter while it fails. A change reaches SDKs in about five seconds rather than under one. NFR-SEC-005 notes that polling fleets must fit the rate limit. | The roadmap's first cut was invoked (ADR-027): the estimate exceeded six weeks, and the SDK, its parity suite and the demo application are on the never-cut list. ADR-004 had already named five-second polling as the accepted degradation. |

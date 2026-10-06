@@ -25,6 +25,7 @@ Status is updated as slices merge. Anything not listed here is not in v0.1.
 | 2.9 Isolation and exposure suites | Done. Suite 5 landed with 1.7. Suite 6 is its own suite: a client key's payload is searched as text for every hidden flag's rules, salt and values and every override user key on every flag, raw and JSON-escaped; ETags do not cross key types in either direction; a key serves its own environment only. Leaking overrides into the client ruleset was confirmed to fail it |
 | 2.10 Audit in the same transaction | Done early, with slice 1.7's first mutations: `AuditLog.record` is `Propagation.MANDATORY`, so an entry cannot commit apart from its change. Each later slice audits its own mutations as it lands |
 | 2.4 Operators | Done, ahead of 2.3, because the resolution-order suite needs rules that can match. Seven operators, compiled once per ruleset build. Suite 4a's rows are in the shared fixture `comparison-semantics.json` for the SDK to run too. Operator shapes and negation decided in ADR-019 |
+| 4.1, 4.3, 4.4 Streaming | **Cut for v0.1** — cut list item 1, invoked on 2026-10-06 (ADR-027). No `GET /sdk/stream`; SDKs poll every five seconds, with backoff and jitter while the server is unreachable, which shipped with 4.2 |
 | 4.2 TypeScript SDK | Done. `@flaglane/sdk` in `sdk/`: `init`, ruleset cache, in-process evaluation, no runtime dependencies (ADR-026). Updates by polling `GET /sdk/config` every five seconds with its ETag. Ready to publish; not yet published to npm |
 | 4.5 Offline and never-throws | Done. Suite 8 runs the SDK against a real local server that is stopped, hung, failing or serving garbage: evaluation carries on from the last ruleset, a start with Flaglane unreachable answers with the caller's fallback, startup is held no longer than the init timeout, and nothing throws |
 | 4.6 Parity | Done. Suite 9: the shared fixtures `evaluation-parity.json`, `comparison-semantics.json` and `bucketing-vectors.json` run in both implementations, the TypeScript half written before the SDK's engine and seen failing against stubs; every bucket of the 100,000-key set agrees with the reference MurmurHash3 on both sides |
@@ -56,7 +57,7 @@ before:
 
 - the cut list below, or
 - the slices marked ◇ moving to v0.2. They are chosen so that nothing on the *never cut* list
-  is at risk: `4.7` rate limiting, `4.8` multi-instance propagation, `4.10` the SSE propagation
+  is at risk: `4.7` rate limiting, `4.8` multi-instance propagation, `4.10` the propagation
   benchmark. `3.9` database-level audit enforcement was one of them and has since landed with
   slice 1.2.
 
@@ -111,13 +112,13 @@ Goal: correct, fast, proven evaluation. The most important milestone; give it th
 | 2.10 | Audit entries written in the same transaction as the change | 0.5 | FR-AUD-001 |
 
 Rate limiting has moved to 4.7. It is hardening rather than correctness, its algorithm and limits
-were undecided when it was scheduled here, and it belongs next to the stream connection limit it
-interacts with. Database-level audit enforcement and suite 10 have moved to 3.9, next to the audit
+were undecided when it was scheduled here, and it belonged next to the stream connection limit it
+interacted with, a limit the streaming cut has since removed (ADR-027). Database-level audit enforcement and suite 10 have moved to 3.9, next to the audit
 view; what stays here is the non-negotiable, which is that the entry is written in the same
 transaction.
 
-Benchmarks have moved to 4.10, where the SSE propagation figure NFR-PER-003 asks for can actually
-be measured. NFR-PER-001 and NFR-PER-002 are measured as part of 2.7 and 2.8 and recorded in
+Benchmarks have moved to 4.10, where the propagation figure NFR-PER-003 asks for can actually be
+measured — a polling interval since the streaming cut. NFR-PER-001 and NFR-PER-002 are measured as part of 2.7 and 2.8 and recorded in
 `docs/BENCHMARKS.md` as they land.
 
 Exit criteria: suites 1, 2, 3, 4, 4a, 5, 6, 7 and 11 in `docs/TESTING.md` pass. If the cut list has
@@ -151,30 +152,37 @@ every change appears in the audit trail.
 
 ---
 
-## Milestone 4 — SDK, streaming and hardening
+## Milestone 4 — SDK, propagation and hardening
 
 Goal: a real application consumes it, and Flaglane going down does not matter.
 
 | Slice | Contents | Days | Requirements |
 | --- | --- | --- | --- |
-| 4.1 | SSE endpoint with `SseEmitter`, connection registry, heartbeat, connection ceiling, revocation closes streams | 1.5 | FR-SRV-003, FR-STR-001 to FR-STR-004 |
+| 4.1 ✂ | ~~SSE endpoint with `SseEmitter`, connection registry, heartbeat, connection ceiling, revocation closes streams~~ Cut (ADR-027) | 1.5 | FR-SRV-003, FR-STR-001 to FR-STR-004 |
 | 4.2 | TypeScript SDK: `init`, ruleset cache, in-process evaluation | 1 | FR-SDK-001, FR-SDK-002 |
-| 4.3 | Stream subscription with atomic ruleset swap | 0.5 | FR-SDK-003 |
-| 4.4 | Reconnect with backoff and jitter; polling fallback | 0.5 | FR-SDK-004 |
+| 4.3 ✂ | ~~Stream subscription with atomic ruleset swap~~ Cut (ADR-027); the SDK polls and swaps atomically instead | 0.5 | FR-SDK-003 |
+| 4.4 ✂ | ~~Reconnect with backoff and jitter; polling fallback~~ Cut (ADR-027): no stream to reconnect. Polling with backoff and jitter shipped in 4.2 | 0.5 | FR-SDK-004 |
 | 4.5 | Offline behaviour and never-throws; suite 8 | 0.5 | FR-SDK-005, FR-SDK-006 |
 | 4.6 | Parity suite against shared fixtures; suite 9 | 1 | FR-SDK-007 |
-| 4.7 ◇ | Rate limiting per key, streams counted at connection | 1 | NFR-SEC-005 |
-| 4.8 ◇ | `LISTEN`/`NOTIFY` cache invalidation and stream fan-out across instances | 1 | NFR-PER-003, NFR-REL-002 |
+| 4.7 ◇ | Rate limiting per key | 1 | NFR-SEC-005 |
+| 4.8 ◇ | `LISTEN`/`NOTIFY` cache invalidation across instances | 1 | NFR-PER-003, NFR-REL-002 |
 | 4.9 | `examples/demo-shop`: a small storefront using the SDK | 1 | — |
-| 4.10 ◇ | SSE propagation benchmark; `docs/BENCHMARKS.md` completed | 0.5 | NFR-PER-003 |
+| 4.10 ◇ | Propagation benchmark: a change to SDK pickup under polling; `docs/BENCHMARKS.md` completed | 0.5 | NFR-PER-003 |
 | 4.11 | Release: v0.1.0 tag, CHANGELOG updated | 0.5 | — |
 
 Slice 4.8 is what lifts the single-instance constraint recorded in ADR-013. Until it lands, a
-second instance runs a stale cache and its connected SDKs never learn anything changed, so v0.1
-ships as a single instance and says so in the README, in `docs/ARCHITECTURE.md` and in the ADR.
+second instance runs a stale cache and the SDKs polling it never see a change made on the other,
+so v0.1 ships as a single instance and says so in the README, in `docs/ARCHITECTURE.md` and in
+the ADR.
 
-Exit criteria: moving the rollout slider in the dashboard visibly changes the demo shop in under
-a second. Stopping the API leaves the demo shop working.
+Exit criteria: moving the rollout — in the dashboard, or through the management API until the
+dashboard exists — visibly changes the demo shop **within five seconds**. Stopping the API leaves the
+demo shop working.
+
+**Cut recorded:** cut list item 1 was invoked on 2026-10-06 (ADR-027). Slices 4.1, 4.3 and 4.4 are
+not in v0.1, and the exit criterion above is the cut's: five seconds, the poll interval, where it
+said under a second. NFR-PER-003's sub-second target drops with it (E-039). No suite tested the
+stream, so none drops.
 
 ---
 
@@ -183,7 +191,8 @@ a second. Stopping the API leaves the demo shop working.
 Under time pressure, cut in this order. Each cut carries a consequence for the milestone's exit
 criteria, and the consequence is part of the cut.
 
-1. **SSE (4.1, 4.3, 4.4) — fall back to 5-second polling**, not 30. ADR-004 rejects polling alone
+1. **SSE (4.1, 4.3, 4.4) — fall back to 5-second polling**, not 30. **Invoked on 2026-10-06
+   (ADR-027)**, and recorded in milestone 4's exit criteria. ADR-004 rejects polling alone
    on the grounds that a 30-second worst case is unacceptable for a kill switch, and cutting to
    exactly that would make the first cut contradict a decision. Five seconds is an accepted
    degradation, recorded in ADR-004 as an amendment. NFR-PER-003's sub-second target does not hold
