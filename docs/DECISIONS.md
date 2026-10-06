@@ -580,3 +580,27 @@ designs it once v0.1 ships; the SDK's polling stays as its fallback. **Rejected:
 and cutting the demo application or the parity suite — both are on the never-cut list, because
 they are the claims the project rests on; cutting to 30-second polling — the worst case ADR-004
 calls unacceptable for a kill switch.
+
+---
+
+## ADR-028 — The demo shop: TypeScript run by Node directly, the SDK linked from the repository
+
+Slice 4.9 needed an application that consumes the SDK, and milestone 4's exit criteria — a change
+reaches it within five seconds, and stopping Flaglane leaves it working — needed something to be
+measured against. **Decision:** `examples/demo-shop` is a `node:http` server written in TypeScript
+and run by Node's built-in type stripping, so it has no build step and no runtime dependency but the
+SDK, which it links from `../../sdk` until `@flaglane/sdk` is on npm. Its scripts stand in for the
+dashboard through the management API: `seed` registers an account with a generated password, creates
+the project, two flags and a server key, and writes the account and key to the shop's gitignored
+`.env`; `flag` makes one configuration change; `verify` checks both exit criteria against a running
+stack, and CI runs it against `docker compose` on every push. **Consequences:** the shop needs Node
+22.18 or later where the SDK needs 20, and its TypeScript is limited to syntax that can be erased —
+no enums, no parameter properties; running it from a clone needs the SDK built first, one command,
+until the package is published; the exit criteria are checked continuously rather than once by
+hand; the check measures pickup from the end of one `PATCH` to the shop serving the new version, and
+allows one second over the five-second interval for the request and its own sampling. **Rejected:**
+a framework such as Express — a dependency for two routes; a bundler or `tsc` emit step — a build
+for an example whose point is how little it takes; plain JavaScript — the SDK is TypeScript-first and
+the example should show its types; a browser-only demo with a client key — it would hide user
+overrides, which client keys never receive (FR-KEY-008), and a server-rendered shop shows the server
+key path most applications use.

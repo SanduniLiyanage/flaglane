@@ -95,6 +95,10 @@ tokens and must be at least 32 bytes (`openssl rand -base64 48` makes one). Chan
 signs every dashboard user out. `.env` is gitignored. If something on your machine already listens
 on 5432, set `FLAGLANE_DB_PORT` in `.env` to publish PostgreSQL on another port.
 
+To see it work, run the [demo shop](examples/demo-shop/) against that stack. It is a small
+storefront on the SDK: move a rollout from the command line and the shop changes within five
+seconds, then stop the API and the shop keeps going.
+
 See [docs/](docs/) for architecture, API contract, database design and testing strategy.
 
 ## Stack

@@ -29,6 +29,7 @@ Status is updated as slices merge. Anything not listed here is not in v0.1.
 | 4.2 TypeScript SDK | Done. `@flaglane/sdk` in `sdk/`: `init`, ruleset cache, in-process evaluation, no runtime dependencies (ADR-026). Updates by polling `GET /sdk/config` every five seconds with its ETag. Ready to publish; not yet published to npm |
 | 4.5 Offline and never-throws | Done. Suite 8 runs the SDK against a real local server that is stopped, hung, failing or serving garbage: evaluation carries on from the last ruleset, a start with Flaglane unreachable answers with the caller's fallback, startup is held no longer than the init timeout, and nothing throws |
 | 4.6 Parity | Done. Suite 9: the shared fixtures `evaluation-parity.json`, `comparison-semantics.json` and `bucketing-vectors.json` run in both implementations, the TypeScript half written before the SDK's engine and seen failing against stubs; every bucket of the 100,000-key set agrees with the reference MurmurHash3 on both sides |
+| 4.9 Demo shop | Done. `examples/demo-shop`: a storefront on the SDK with a server key, a rollout with an override and a targeting rule, and scripts that stand in for the dashboard through the management API (ADR-028). `npm run verify` checks milestone 4's exit criteria against a running stack; against Compose, four changes reached the shop in 0.05 to 4.99 s, and with the API stopped the shop kept applying the override, the rule and the rollout from its last ruleset. Linked from `sdk/` until the package is published |
 | Everything else | Not started |
 
 ## Principles
