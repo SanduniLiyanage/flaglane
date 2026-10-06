@@ -46,6 +46,13 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     return problem(HttpStatus.UNAUTHORIZED, e.getMessage());
   }
 
+  @ExceptionHandler(TooManyRequestsException.class)
+  ResponseEntity<ProblemDetail> tooManyRequests(TooManyRequestsException e) {
+    return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+        .header(HttpHeaders.RETRY_AFTER, Long.toString(e.retryAfterSeconds()))
+        .body(problem(HttpStatus.TOO_MANY_REQUESTS, e.getMessage()));
+  }
+
   /**
    * A data access or transaction failure. If the database is unreachable, the management API cannot
    * work and says so with a 503 (docs/ARCHITECTURE.md section 7); the serving API never reaches

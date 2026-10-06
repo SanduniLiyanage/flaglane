@@ -297,6 +297,10 @@ will be built after v0.1; until then no `/sdk/stream` exists and SDKs poll (FR-S
   polling every five seconds, each SDK process makes twelve requests a minute, so one key shared
   by fifty processes reaches the default limit: the limit must be sized for polling fleets when it
   is built, and a `304` should cost less than a full answer (E-039).
+- **NFR-SEC-006** `POST /api/auth/register` and `POST /api/auth/login` share a rate limit per client
+  address, by the same token bucket: 10 requests a minute by default, configurable, answering 429
+  with `Retry-After` before the request body is read or a password hashed. An IPv6 /64 counts as one
+  address (E-040).
 
 ### Reliability
 - **NFR-REL-001** Service unavailability degrades applications to last-known-good, then to
@@ -360,3 +364,4 @@ Corrections to this document, recorded rather than silently edited.
 | E-037 | FR-AUD-001 | Scoped to mutations of a project or anything in it. Account registration is not audited. | `audit_entries.project_id` is not nullable and the action vocabulary has no account event, so "every mutation" could not include registering, which belongs to no project. Making the column nullable would let every other event be written without its project by mistake (ADR-021). |
 | E-038 | FR-ENV-003 | A deleted environment's audit entries keep its id instead of having it blanked. | Blanking was `ON DELETE SET NULL`, which is an UPDATE of `audit_entries`, and FR-AUD-002's append-only trigger refuses every UPDATE. No environment that had ever been audited — every one — could be deleted; reproduced against PostgreSQL before the endpoint was built. `V4__audit_keeps_deleted_references.sql` drops the two foreign keys instead (ADR-022). |
 | E-039 | FR-SDK-003, FR-SDK-004, NFR-PER-003, FR-KEY-003, NFR-SEC-005; FR-SRV-003 and FR-STR-001 to FR-STR-004 deferred | Server-Sent Events are not in v0.1: SDKs poll `GET /sdk/config` every five seconds with the ruleset's ETag, and back off with jitter while it fails. A change reaches SDKs in about five seconds rather than under one. NFR-SEC-005 notes that polling fleets must fit the rate limit. | The roadmap's first cut was invoked (ADR-027): the estimate exceeded six weeks, and the SDK, its parity suite and the demo application are on the never-cut list. ADR-004 had already named five-second polling as the accepted degradation. |
+| E-040 | NFR-SEC-006 (new) | Registration and sign-in are rate limited per client address, before any password is hashed. | Slice 1.10 exposes both endpoints publicly, and each attempt costs a bcrypt hash. No requirement limited them: NFR-SEC-005 covers the serving API only (ADR-029). |

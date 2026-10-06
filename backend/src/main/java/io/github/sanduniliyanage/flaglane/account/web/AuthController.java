@@ -2,11 +2,13 @@ package io.github.sanduniliyanage.flaglane.account.web;
 
 import io.github.sanduniliyanage.flaglane.account.service.AccountService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,6 +22,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/auth")
 @Tag(name = "Authentication", description = "Accounts and access tokens for the dashboard")
 public class AuthController {
+
+  private static final String TOO_MANY =
+      "Too many registration and sign-in requests from this address: 10 a minute by default,"
+          + " shared by both endpoints (ADR-029)";
+  private static final String RETRY_AFTER = "Seconds until this address may try again";
 
   private final AccountService accounts;
 
@@ -43,6 +50,11 @@ public class AuthController {
       responseCode = "409",
       description = "An account already uses this email address",
       content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+  @ApiResponse(
+      responseCode = "429",
+      description = TOO_MANY,
+      headers = @Header(name = HttpHeaders.RETRY_AFTER, description = RETRY_AFTER),
+      content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
   AccountResponse register(@Valid @RequestBody RegisterRequest request) {
     return AccountMapper.toResponse(
         accounts.register(request.email(), request.password(), request.displayName()));
@@ -59,6 +71,11 @@ public class AuthController {
   @ApiResponse(
       responseCode = "401",
       description = "Unknown email or wrong password; the response does not say which",
+      content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+  @ApiResponse(
+      responseCode = "429",
+      description = TOO_MANY,
+      headers = @Header(name = HttpHeaders.RETRY_AFTER, description = RETRY_AFTER),
       content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
   AccessTokenResponse login(@Valid @RequestBody LoginRequest request) {
     return AccountMapper.toResponse(accounts.signIn(request.email(), request.password()));

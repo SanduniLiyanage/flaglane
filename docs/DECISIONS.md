@@ -604,3 +604,30 @@ for an example whose point is how little it takes; plain JavaScript — the SDK 
 the example should show its types; a browser-only demo with a client key — it would hide user
 overrides, which client keys never receive (FR-KEY-008), and a server-rendered shop shows the server
 key path most applications use.
+
+---
+
+## ADR-029 — Registration and sign-in are rate limited per client address
+
+Slice 1.10 puts Flaglane on a public URL, where anyone can register and every sign-in attempt
+costs a bcrypt hash, right or wrong. Without a limit, one client can spend the server's CPU and
+guess passwords as fast as it can send them; NFR-SEC-005's limit covers the serving API only.
+**Decision:** `POST /api/auth/register` and `/login` share one allowance per client address: 10
+requests a minute by default, `FLAGLANE_AUTH_RATE_LIMIT_PER_MINUTE` to change it, and the same
+number as the burst an idle address may make at once. Beyond it the answer is 429 with
+`Retry-After`, before the body is read or a password hashed. The algorithm is NFR-SEC-005's
+in-memory token bucket, written once in `common/security/TokenBuckets` for slice 4.7 to put in
+front of `/sdk/**` per key. Every address in one IPv6 /64 shares an allowance, since a single
+client is commonly given the whole /64. The table holds at most 10,000 addresses; when it is full,
+addresses whose buckets have refilled are dropped, and a new address is refused if none has, so a
+flood of addresses cannot reset the ones already limited. **Consequences:** the limit keys on the
+address the servlet container reports. Behind a reverse proxy, as on every likely host for 1.10,
+that is the proxy's address unless the deployment has the container read the proxy's forwarded
+headers, and without that every client would share one allowance; configuring them is part of 1.10.
+Clients behind one NAT share an allowance, which is ample for a team signing in to a dashboard. The
+limit is per instance, exact while Flaglane runs as one (ADR-013). It slows guessing from one
+address and does not stop guessing spread across many against one account. **Rejected:** Bucket4j
+or Resilience4j — a dependency for forty lines whose arithmetic is pinned by a test; locking an
+account after failed attempts — it lets anyone who knows an email address lock its owner out, and
+the per-address limit already bounds the rate; counting only failed sign-ins — registration costs a
+hash too, and a successful sign-in costs the same CPU as a failed one.

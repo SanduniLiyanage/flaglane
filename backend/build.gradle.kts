@@ -50,6 +50,9 @@ tasks.withType<Test> {
     // The application reads its JWT signing secret from the environment with no default, so the
     // test JVM is given one the same way a deployment is. It signs nothing outside a test run.
     environment("FLAGLANE_JWT_SECRET", "test-only-signing-secret-never-used-outside-tests")
+    // Every test request comes from one address, and the suite signs up more users a minute than
+    // the default sign-in limit allows. AuthRateLimitTest sets its own limit and tests it.
+    environment("FLAGLANE_AUTH_RATE_LIMIT_PER_MINUTE", "60000")
 }
 
 jacoco {

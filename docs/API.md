@@ -63,6 +63,17 @@ POST /api/auth/login
 
 There is no refresh token and no `/api/auth/me` (ADR-012).
 
+Both endpoints share one allowance per client address: 10 requests a minute by default, any 10 of
+them at once after a quiet minute, and every address in an IPv6 /64 counts as one (NFR-SEC-006,
+ADR-029). Beyond it they answer 429 with `Retry-After` in seconds, before the password is checked:
+
+```json
+429
+Retry-After: 6
+{ "type": "about:blank", "title": "Too Many Requests", "status": 429,
+  "detail": "Too many sign-in and registration attempts from this address; try again shortly" }
+```
+
 ### Projects and environments
 | Method | Path | Purpose |
 | --- | --- | --- |

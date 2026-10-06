@@ -41,6 +41,10 @@ flaglane:
       # HS256 signing key for dashboard access tokens (ADR-021). No default: an unset secret fails
       # startup with the variable named. At least 32 bytes; `openssl rand -base64 48` makes one.
       secret: ${FLAGLANE_JWT_SECRET}
+    # Registration and sign-in requests a minute per client address, which is also the burst an
+    # idle client may make at once (ADR-029). Answered with 429 and Retry-After beyond it.
+    auth-rate-limit:
+      per-minute: ${FLAGLANE_AUTH_RATE_LIMIT_PER_MINUTE:10}
 
 management:
   endpoints:
