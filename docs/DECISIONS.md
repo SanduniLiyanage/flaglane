@@ -631,3 +631,29 @@ or Resilience4j — a dependency for forty lines whose arithmetic is pinned by a
 account after failed attempts — it lets anyone who knows an email address lock its owner out, and
 the per-address limit already bounds the rate; counting only failed sign-ins — registration costs a
 hash too, and a successful sign-in costs the same CPU as a failed one.
+
+---
+
+## ADR-030 — The audit read API: one project trail, named by key, states as recorded
+
+FR-AUD-003 asked for the trail of a flag or an environment; `docs/API.md` specified one project
+endpoint; no slice scheduled either, and the dashboard's audit view (3.8) needs one. **Decision:**
+`GET /api/projects/{projectKey}/audit` returns the project's trail newest first, keyset paginated
+on `(created_at, id)`, compared as a row so PostgreSQL walks `ix_audit_entries_project_created`
+from the cursor. `environment` and `flag` narrow it by key, and a key the project does not have is
+a 404, the same answer as for a key in a path. The cursor is the plain `<created_at>,<id>` the
+contract named, returned ready-made as `next`. Each entry names its actor by email and display name
+and its environment and flag by key, in one query per page; an environment deleted since keeps the
+key from its own deletion entry, found through a partial index (V5), and says it is deleted. The
+recorded states are returned as recorded, so a rollout reads `rolloutBasisPoints: 3000`. The read is
+in `audit/` over JDBC, as `RulesetLoader` reads rulesets, because it joins four packages' tables
+and an entity graph across them would couple those packages for one query. **Consequences:**
+narrowing by an environment reaches only the environment that has that key now, not an earlier
+one deleted under the same key; that one's entries still appear unfiltered, marked deleted. A
+reader sees basis points in the trail where every other management endpoint shows a percentage.
+Slice 3.10 records the work in the roadmap. **Rejected:** offset pagination — E-025; an opaque,
+encoded cursor — it hides nothing a client could misuse, and the contract had already published
+the plain one; translating recorded states into the API's current vocabulary — a record that is
+rewritten on the way out stops being evidence, and the translation would have to know every past
+payload shape; per-flag and per-environment endpoints — three endpoints for one query, and the
+project-level events would have none.

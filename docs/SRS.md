@@ -249,7 +249,9 @@ will be built after v0.1; until then no `/sdk/stream` exists and SDKs poll (FR-S
   role, ownership or superuser status; the revoke alone is a speed bump.
 - **FR-AUD-003** A user views the audit trail for a flag or an environment, newest first, paginated
   by keyset on `(created_at desc, id desc)`. Not by offset: entries arrive while a user is paging,
-  and offset pagination against a descending-time index silently repeats and skips rows.
+  and offset pagination against a descending-time index silently repeats and skips rows. The trail
+  is read per project and narrowed to an environment or a flag, and each entry names its actor,
+  environment and flag (E-041).
 
 ### 4.9 Dashboard
 
@@ -365,3 +367,4 @@ Corrections to this document, recorded rather than silently edited.
 | E-038 | FR-ENV-003 | A deleted environment's audit entries keep its id instead of having it blanked. | Blanking was `ON DELETE SET NULL`, which is an UPDATE of `audit_entries`, and FR-AUD-002's append-only trigger refuses every UPDATE. No environment that had ever been audited — every one — could be deleted; reproduced against PostgreSQL before the endpoint was built. `V4__audit_keeps_deleted_references.sql` drops the two foreign keys instead (ADR-022). |
 | E-039 | FR-SDK-003, FR-SDK-004, NFR-PER-003, FR-KEY-003, NFR-SEC-005; FR-SRV-003 and FR-STR-001 to FR-STR-004 deferred | Server-Sent Events are not in v0.1: SDKs poll `GET /sdk/config` every five seconds with the ruleset's ETag, and back off with jitter while it fails. A change reaches SDKs in about five seconds rather than under one. NFR-SEC-005 notes that polling fleets must fit the rate limit. | The roadmap's first cut was invoked (ADR-027): the estimate exceeded six weeks, and the SDK, its parity suite and the demo application are on the never-cut list. ADR-004 had already named five-second polling as the accepted degradation. |
 | E-040 | NFR-SEC-006 (new) | Registration and sign-in are rate limited per client address, before any password is hashed. | Slice 1.10 exposes both endpoints publicly, and each attempt costs a bcrypt hash. No requirement limited them: NFR-SEC-005 covers the serving API only (ADR-029). |
+| E-041 | FR-AUD-003 | The trail is read per project, narrowed by an environment or flag key, and each entry names its actor, environment and flag; an environment deleted since keeps the key it had. Recorded states are returned as recorded. | `docs/API.md` already specified one project endpoint, and project creation, environment deletion and key events belong to no flag. Entries that gave ids would have been unreadable to the dashboard, which names everything by key (ADR-030). |

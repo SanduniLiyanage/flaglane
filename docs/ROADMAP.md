@@ -31,6 +31,7 @@ Status is updated as slices merge. Anything not listed here is not in v0.1.
 | 4.6 Parity | Done. Suite 9: the shared fixtures `evaluation-parity.json`, `comparison-semantics.json` and `bucketing-vectors.json` run in both implementations, the TypeScript half written before the SDK's engine and seen failing against stubs; every bucket of the 100,000-key set agrees with the reference MurmurHash3 on both sides |
 | 4.9 Demo shop | Done. `examples/demo-shop`: a storefront on the SDK with a server key, a rollout with an override and a targeting rule, and scripts that stand in for the dashboard through the management API (ADR-028). `npm run verify` checks milestone 4's exit criteria against a running stack; against Compose, four changes reached the shop in 0.05 to 4.99 s, and with the API stopped the shop kept applying the override, the rule and the rollout from its last ruleset. CI runs both checks on every push (gate 7). Linked from `sdk/` until the package is published |
 | Sign-in rate limit | Done ahead of 1.10, which makes registration and sign-in public (ADR-029, NFR-SEC-006). 10 requests a minute per client address by default, 429 with `Retry-After` before any password is hashed. The token bucket is the one 4.7 will put in front of `/sdk/**`. Behind the host's proxy it needs forwarded headers read, which is part of 1.10 |
+| 3.10 Audit read API | Done, ahead of the view that needs it (3.8). Newest first, keyset on `(created_at, id)` compared as a row so PostgreSQL walks the project index from the cursor; narrowed by `environment` or `flag` key; entries name actor, environment and flag rather than giving ids, and a deleted environment keeps its key, read from its deletion entry through a partial index (V5). Recorded states are returned as recorded (ADR-030) |
 | Everything else | Not started |
 
 ## Principles
@@ -144,6 +145,7 @@ Goal: the rules are editable by a human.
 | 3.7 | Key management, with a copy-once display | 0.5 | FR-UI-005 |
 | 3.8 | Audit trail view, keyset paginated | 0.5 | FR-UI-006 |
 | 3.9 ◇ | Database-level audit append-only enforcement; suite 10. **Done early**, with `V3__audit_append_only.sql` in slice 1.2, and no longer a candidate for v0.2 | 1 | FR-AUD-002 |
+| 3.10 | Audit read API: `GET /api/projects/{projectKey}/audit`, keyset paginated, narrowed by environment or flag. Added on 2026-10-06: FR-AUD-003 and `docs/API.md` specified the endpoint but no slice scheduled it, and 3.8 cannot be built without it | 0.5 | FR-AUD-003 |
 
 The rollout slider shows whole percentages and sends whole percentages (ADR-011). It is disabled,
 with a reason, when `fallthroughValue` is `true`, because the rollout is inert in that case

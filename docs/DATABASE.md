@@ -301,6 +301,7 @@ anyone reading the log.
 | `flag_configs (environment_id)` | Cache rebuild loads one environment at a time |
 | `audit_entries (project_id, created_at desc, id desc)` | Audit trail, newest first, keyset paginated |
 | `audit_entries (flag_id, created_at desc, id desc)` | Per-flag history |
+| `audit_entries (environment_id) where action = 'environment.deleted'` | Names a deleted environment's entries by the key its deletion entry recorded, without scanning the project's trail per entry (V5) |
 
 The unique constraints on `api_keys (key_hash)`, `targeting_rules (flag_config_id, priority)` and
 `user_overrides (flag_config_id, user_key)` already create indexes; they were previously listed a
@@ -330,6 +331,7 @@ management API, the cache rebuild, and the key cache's own load.
 | `V2__roles.sql` | Grants to `flaglane_app`, and the revokes on `audit_entries`. The role itself is provisioned by the environment before Flyway runs (ADR-016) |
 | `V3__audit_append_only.sql` | The `BEFORE UPDATE OR DELETE` row trigger and the `BEFORE TRUNCATE` statement trigger on `audit_entries` |
 | `V4__audit_keeps_deleted_references.sql` | Drops the foreign keys from `audit_entries.environment_id` and `flag_id`, whose `SET NULL` the V3 trigger refused (ADR-022) |
+| `V5__audit_environment_deletions.sql` | A partial index on environment deletion entries, for reading the trail (FR-AUD-003, ADR-030) |
 
 Later migrations are added as features land. Every migration is reversible by a forward
 migration, never by editing.

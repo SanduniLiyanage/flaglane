@@ -194,11 +194,35 @@ configuration holds at most 100 rules of at most 1,000 values each, and at most 
 ### Audit
 | Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/api/projects/{projectKey}/audit` | Newest first, keyset paginated on `(created_at, id)`. **Not built yet** |
+| GET | `/api/projects/{projectKey}/audit` | Newest first, keyset paginated on `(created_at, id)` (FR-AUD-003) |
 
 Audit pagination is keyset, not offset: `?before=<created_at>,<id>&limit=n`. Entries arrive while
-a reader pages, and an offset against a descending-time index repeats and skips rows. Entries are
-written today; reading them over the API is not yet implemented.
+a reader pages, and an offset against a descending-time index repeats and skips rows. A page's
+`next` is the `before` for the page after it, and is `null` on the last page. `limit` is 1 to 100,
+50 when left out. `environment=<envKey>` and `flag=<flagKey>` narrow the trail to one environment
+or one flag, archived flags included; a key the project does not have is a 404.
+
+```json
+GET /api/projects/storefront/audit?flag=new-checkout&limit=1
+
+200
+{ "entries": [
+    { "id": "8c1e0d6a-…", "createdAt": "2026-10-05T09:30:00.123456Z", "action": "config.updated",
+      "actor": { "email": "amara@example.com", "displayName": "Amara" },
+      "environment": "production", "environmentDeleted": false, "flag": "new-checkout",
+      "previousValue": { "enabled": true, "fallthroughValue": false,
+                         "rolloutBasisPoints": 1000, "rolloutSalt": "new-checkout" },
+      "newValue":      { "enabled": true, "fallthroughValue": false,
+                         "rolloutBasisPoints": 3000, "rolloutSalt": "new-checkout" } } ],
+  "next": "2026-10-05T09:30:00.123456Z,8c1e0d6a-…" }
+```
+
+Entries name the actor, environment and flag; database ids of other resources are not exposed. An
+environment deleted since keeps the key it had, with `environmentDeleted: true`, because its
+entries keep its id (E-038). `previousValue` and `newValue` are the states as recorded, not
+re-presented: a rollout appears in basis points under `rolloutBasisPoints`, the name stating the
+unit, because an audit record that is translated on the way out is no longer the record (ADR-030).
+`action` is from the fixed vocabulary in `docs/DATABASE.md`.
 
 ## Serving API — `/sdk/**`
 
