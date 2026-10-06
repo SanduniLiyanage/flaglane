@@ -152,11 +152,17 @@ are not evidence.
 4. `evaluation/` line coverage below 90%
 5. SDK test failures or type errors
 6. A Docker image that does not build
+7. The demo shop missing a change for longer than the poll interval, or failing with the API stopped
 
-All six gates are live. Gate 4 is `jacocoTestCoverageVerification`, which `check` runs: it
+All seven gates are live. Gate 4 is `jacocoTestCoverageVerification`, which `check` runs: it
 fails below 90% line coverage in `evaluation/` and nowhere else, and it was confirmed to fail when
 raised above the actual figure. Gate 5 is the workflow's SDK job: `npm ci`, then `tsc` with no
-emit, then Vitest, then the build, on Node 24.
+emit, then Vitest, then the build, on Node 24. Gate 7 is the workflow's demo job, milestone 4's exit
+criteria as a check: it starts the Compose stack with credentials generated for the run, seeds
+`examples/demo-shop`, and runs its `verify` script twice (ADR-028). The first makes four changes
+through the management API and fails if any takes more than the five-second poll interval plus one
+second to reach the shop, or if raising the rollout takes the feature from anyone. The second runs
+with the API stopped and fails unless the shop still applies the override, the rule and the rollout.
 
 Tests need Docker for Testcontainers. The `ubuntu-latest` runner ships with Docker Engine
 running and the runner user in the `docker` group, so Testcontainers finds the daemon at its

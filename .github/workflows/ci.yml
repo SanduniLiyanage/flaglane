@@ -4,7 +4,9 @@
 # build below 90% line coverage in evaluation/. The tests run against a real
 # PostgreSQL through Testcontainers, which finds the runner's Docker daemon at its
 # default socket with no setup step. The SDK job type-checks, tests and builds sdk/;
-# its parity suite reads the same fixtures under backend/ that the server's does.
+# its parity suite reads the same fixtures under backend/ that the server's does. The
+# demo job runs milestone 4's exit criteria: the demo shop, against the Compose stack,
+# picks up a change within the poll interval and keeps serving with the API stopped.
 name: CI
 
 on:
@@ -78,3 +80,67 @@ jobs:
       - uses: actions/checkout@v7
 
       - run: docker build --file backend/Dockerfile --tag flaglane-api:${{ github.sha }} .
+
+  demo:
+    name: Demo shop against the stack
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            sdk/package-lock.json
+            examples/demo-shop/package-lock.json
+
+      - name: Build the SDK the shop links to
+        working-directory: sdk
+        run: npm ci && npm run build
+
+      - name: Install and type-check the shop
+        working-directory: examples/demo-shop
+        run: npm ci && npm run typecheck
+
+      # Credentials made for this run and discarded with the runner; nothing is stored as a secret.
+      - name: Start PostgreSQL and the API
+        run: |
+          umask 077
+          {
+            echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)"
+            echo "FLAGLANE_DB_MIGRATOR_PASSWORD=$(openssl rand -hex 24)"
+            echo "FLAGLANE_DB_APP_PASSWORD=$(openssl rand -hex 24)"
+            echo "FLAGLANE_JWT_SECRET=$(openssl rand -base64 48)"
+          } > .env
+          docker compose up --detach --build
+
+      - name: Wait for the API to be ready
+        run: |
+          for attempt in $(seq 1 90); do
+            if curl --silent --fail http://localhost:8080/actuator/health/readiness > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "The API was not ready after three minutes"
+          exit 1
+
+      - name: Seed, start the shop, and time a change reaching it
+        working-directory: examples/demo-shop
+        run: |
+          npm run seed
+          nohup npm start > shop.log 2>&1 &
+          npm run verify -- propagation
+
+      - name: Stop the API; the shop keeps serving
+        run: |
+          docker compose stop api
+          npm --prefix examples/demo-shop run verify -- offline
+
+      - name: Logs
+        if: failure()
+        run: |
+          docker compose logs
+          cat examples/demo-shop/shop.log || true
