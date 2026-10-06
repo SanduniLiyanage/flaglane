@@ -26,6 +26,25 @@ export function sameValue(a: Value, b: Value): boolean {
 }
 
 /**
+ * Builds the engine's view of a user from the flat context an application passes: `key`, and
+ * every other own property as an attribute. As `userFrom(key, attributes)` would build it, without
+ * first copying the context into a key and a separate record: this runs on every evaluation.
+ */
+export function userFromContext(context: Readonly<Record<string, unknown>>): User {
+  const values = new Map<string, Value>();
+  for (const name in context) {
+    if (name !== "key" && Object.hasOwn(context, name)) {
+      const value = toValue(context[name]);
+      if (value !== undefined) {
+        values.set(name, value);
+      }
+    }
+  }
+  const key = context.key;
+  return { key: typeof key === "string" && key !== "" ? key : undefined, attributes: values };
+}
+
+/**
  * Builds the engine's view of a user from a key and an attribute record. An empty key is no key
  * (ADR-017); an attribute that is not a string, finite number or boolean is dropped.
  */

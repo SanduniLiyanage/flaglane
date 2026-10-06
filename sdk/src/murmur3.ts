@@ -5,9 +5,10 @@ const C2 = 0x1b873593;
  * MurmurHash3, the x86_32 variant, after Austin Appleby's public-domain reference implementation:
  * the variant FR-EVL-002 names, and the one the server implements. Returns the hash as an unsigned
  * integer, the `(h >>> 0)` of FR-EVL-002, so a bucket is never negative.
+ *
+ * @param length how many bytes of `data` to hash, from the start; all of them by default
  */
-export function murmur3X86_32(data: Uint8Array, seed: number): number {
-  const length = data.length;
+export function murmur3X86_32(data: Uint8Array, seed: number, length = data.length): number {
   const blocksEnd = length & ~3;
   let h1 = seed | 0;
 

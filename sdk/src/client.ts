@@ -1,4 +1,4 @@
-import { userFrom } from "./context.js";
+import { userFrom, userFromContext } from "./context.js";
 import { Evaluator } from "./evaluator.js";
 import { type Ruleset, parseRuleset } from "./ruleset.js";
 import type { Evaluation, Logger } from "./types.js";
@@ -112,13 +112,10 @@ export class FlaglaneClient {
   evaluate(flagKey: string, context?: Context, fallback = false): Evaluation {
     const safeFallback = fallback === true;
     try {
-      let user;
-      if (context !== null && typeof context === "object") {
-        const { key, ...attributes } = context;
-        user = userFrom(key, attributes);
-      } else {
-        user = userFrom(undefined, undefined);
-      }
+      const user =
+        context !== null && typeof context === "object"
+          ? userFromContext(context)
+          : userFrom(undefined, undefined);
       return this.evaluator.evaluate(this.ruleset, flagKey, user, safeFallback);
     } catch (error) {
       safeWarn(this.logger, "Flaglane: a context could not be read; returned the fallback", error);
