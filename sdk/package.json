@@ -30,8 +30,12 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
+    "typecheck:bench": "tsc -p tsconfig.bench.json",
     "test": "vitest run",
-    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+    "prepublishOnly": "npm run typecheck && npm test && npm run build",
+    "bench:evaluation": "npm run build && node bench/evaluation.ts",
+    "bench:serving": "npm run build && node bench/serving.ts",
+    "bench:propagation": "npm run build && node bench/propagation.ts"
   },
   "devDependencies": {
     "@types/node": "24.19.1",

@@ -71,6 +71,9 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      # The benchmarks run against the build and are not run here, a shared runner being no place
+      # to time anything; checking their types keeps them runnable (docs/BENCHMARKS.md).
+      - run: npm run typecheck:bench
 
   image:
     name: Build image

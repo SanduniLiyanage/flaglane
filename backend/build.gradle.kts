@@ -125,3 +125,14 @@ configurations.named("spotbugs") {
 tasks.withType<com.github.spotbugs.snom.SpotBugsTask>().configureEach {
     reports.create("text") { required = true }
 }
+
+// NFR-PER-001 for the server's engine (docs/BENCHMARKS.md). Not part of check: a latency figure
+// taken on a shared CI runner measures the neighbours as much as the code. Run on an idle machine.
+tasks.register<JavaExec>("evaluationBenchmark") {
+    group = "verification"
+    description = "Times single evaluations with 1,000 flags and 50 rules (NFR-PER-001)."
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass = "io.github.sanduniliyanage.flaglane.benchmark.EvaluationBenchmark"
+    // A fixed heap, so the collector does not resize it between rounds.
+    jvmArgs("-Xms1g", "-Xmx1g")
+}
