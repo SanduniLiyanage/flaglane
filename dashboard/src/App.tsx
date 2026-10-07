@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Layout } from "./components/Layout";
+import { FlagDetailPage } from "./pages/FlagDetailPage";
 import { FlagListPage } from "./pages/FlagListPage";
 import { ProjectHome } from "./pages/ProjectHome";
 import { ProjectsPage } from "./pages/ProjectsPage";
@@ -58,6 +59,15 @@ function Route({ location }: { location: string }) {
   }
   if ((params = match("/projects/:project/:environment/flags", location)) !== null) {
     return <FlagListPage project={params.project as string} environment={params.environment as string} />;
+  }
+  if ((params = match("/projects/:project/:environment/flags/:flag", location)) !== null) {
+    return (
+      <FlagDetailPage
+        project={params.project as string}
+        environment={params.environment as string}
+        flag={params.flag as string}
+      />
+    );
   }
   if (match("/sign-in", location) !== null) {
     return null;

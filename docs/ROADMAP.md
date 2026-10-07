@@ -36,6 +36,7 @@ Status is updated as slices merge. Anything not listed here is not in v0.1.
 | 3.2 Sign in and out | Done. The token lives in one tab's memory; the sign-in page says so, a reload costs a password and returns to the same URL, and signing out says a copied token stays valid until it expires (E-029). The session ends at expiry or on a 401, with the reason shown. Registration is on the same page, so the dashboard is usable from the first visit |
 | 3.3 Projects and environment switcher | Done. A project opens on its development environment; the switcher keeps the page, a flag's detail included |
 | 3.4 Flag list | Done, with flag creation, which no slice scheduled and milestone 3's exit criterion needs. One request for every configuration of an environment, `GET .../environments/{envKey}/configs`, added for it |
+| 3.5 Flag detail | Done. The kill switch is one confirmed action that saves at once and leaves staged edits staged; the fallthrough value and the rollout are staged and saved with one `PATCH` of the changed fields; the rollout is a range of whole percentages, disabled with its reason while the fallthrough value is true. Leaving unsaved changes asks first. Checked end to end in a browser against the built image |
 | Everything else | Not started |
 
 ## Principles
