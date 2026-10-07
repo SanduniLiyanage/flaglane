@@ -1,15 +1,17 @@
 import type { ReactNode } from "react";
-import { confirmLeaving, Link } from "../router";
+import { confirmLeaving, Link, path } from "../router";
 import { sessions, useSession } from "../session/session";
 import { EnvironmentSwitcher } from "./EnvironmentSwitcher";
 
 interface Props {
   /** The project the page is in, if any, for the breadcrumb and the environment switcher. */
   readonly project?: { readonly key: string; readonly environment?: string };
+  /** The project page this is, for the tabs. */
+  readonly tab?: "flags" | "keys";
   readonly children: ReactNode;
 }
 
-export function Layout({ project, children }: Props) {
+export function Layout({ project, tab, children }: Props) {
   const { session } = useSession();
 
   const signOut = () => {
@@ -42,7 +44,33 @@ export function Layout({ project, children }: Props) {
           </button>
         </div>
       </header>
+      {project?.environment !== undefined && tab !== undefined && (
+        <ProjectTabs project={project.key} environment={project.environment} tab={tab} />
+      )}
       <main className="page">{children}</main>
     </>
+  );
+}
+
+interface TabsProps {
+  readonly project: string;
+  readonly environment: string;
+  readonly tab: "flags" | "keys";
+}
+
+/** A project's pages in one environment. */
+function ProjectTabs({ project, environment, tab }: TabsProps) {
+  const tabs = [
+    { id: "flags", label: "Flags", to: path("projects", project, environment, "flags") },
+    { id: "keys", label: "API keys", to: path("projects", project, environment, "keys") },
+  ];
+  return (
+    <nav className="tabs" aria-label="Project">
+      {tabs.map((t) => (
+        <Link key={t.id} to={t.to} aria-current={t.id === tab ? "page" : undefined}>
+          {t.label}
+        </Link>
+      ))}
+    </nav>
   );
 }

@@ -34,7 +34,7 @@ export function FlagListPage({ project, environment }: { project: string; enviro
     rows.state === "loaded" ? rows.data.filter((row) => showArchived || row.flag.archivedAt === null) : [];
 
   return (
-    <Layout project={{ key: project, environment }}>
+    <Layout project={{ key: project, environment }} tab="flags">
       <div className="heading">
         <h1>Flags</h1>
         <span className="muted">in {environment}</span>

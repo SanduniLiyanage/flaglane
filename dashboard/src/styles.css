@@ -458,3 +458,57 @@ tr.archived td {
   }
 }
 
+/* Project tabs */
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0 1.5rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.tabs a {
+  padding: 0.6rem 0.9rem;
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+
+.tabs a[aria-current="page"] {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+/* Keys */
+
+.issued {
+  border-left: 4px solid var(--warning-line);
+}
+
+.issued-key {
+  display: flex;
+  gap: 0.75rem;
+  margin: 0.75rem 0;
+}
+
+.issued-key input {
+  flex: 1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.key-type {
+  align-items: flex-start;
+}
+
+.key-type input {
+  margin-top: 0.3rem;
+}
+
+table.keys .confirm p {
+  max-width: 28rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+}
+

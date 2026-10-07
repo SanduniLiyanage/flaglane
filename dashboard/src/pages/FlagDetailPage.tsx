@@ -34,7 +34,7 @@ export function FlagDetailPage({ project, environment, flag }: Props) {
   });
 
   return (
-    <Layout project={{ key: project, environment }}>
+    <Layout project={{ key: project, environment }} tab="flags">
       <p className="back">
         <Link to={path("projects", project, environment, "flags")}>← Flags in {environment}</Link>
       </p>
