@@ -43,7 +43,8 @@ specified in code. Flaglane being down must never take your application down.
 - Explicit user targeting, attribute-based targeting rules, and percentage rollouts
 - Rollouts are monotone: raising a percentage never takes the feature away from a user who has it
 - Consistent bucketing: a user's assignment is stable across servers, restarts and redeploys
-- Kill switch: one click disables a flag everywhere
+- Kill switch: one confirmed action turns a flag off in an environment, whatever its rules and
+  rollout say, without waiting on any other edit
 - In-process evaluation (fast) and remote evaluation (for thin clients)
 - Changes reach running applications within five seconds, by polling. Streaming over Server-Sent
   Events is designed but not in v0.1 (ADR-027)
