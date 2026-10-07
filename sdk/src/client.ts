@@ -168,7 +168,8 @@ export class FlaglaneClient {
   /**
    * The wait before the next attempt: the poll interval while things work; after failures,
    * exponential backoff with jitter up to `maxBackoffMs`, so a fleet of applications does not
-   * return to a recovering server in lockstep (FR-SDK-004); a 503's `Retry-After` when given.
+   * return to a recovering server in lockstep (FR-SDK-004); the `Retry-After` of a 503, or of a 429
+   * when the key is over its rate limit, when given.
    */
   private delayAfter(outcome: Outcome): number {
     if (outcome.kind !== "failed") {
@@ -215,7 +216,7 @@ export class FlaglaneClient {
       return this.failed(
         `Flaglane answered ${response.status}`,
         undefined,
-        response.status === 503 && Number.isFinite(retryAfter) && retryAfter > 0
+        (response.status === 503 || response.status === 429) && Number.isFinite(retryAfter) && retryAfter > 0
           ? retryAfter * 1000
           : undefined,
       );

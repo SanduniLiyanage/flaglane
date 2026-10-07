@@ -39,6 +39,11 @@ if (flags.isOn("new-checkout", { key: user.id, country: user.country }, false)) 
 - **If Flaglane goes away, nothing breaks.** The SDK keeps answering from the last ruleset it had,
   retries with exponential backoff and jitter up to 30 seconds, and picks up changes again when the
   server is back. A bad response never replaces a good ruleset.
+- **A key over its rate limit waits.** Flaglane allows each key 600 requests a minute by default,
+  an unchanged ruleset's `304` counting as a tenth, which is 500 processes polling on one key. An
+  SDK refused with 429 keeps its ruleset and asks again when the server's `Retry-After` says. A
+  client key is shared by every browser that opens your page, so a busy site raises the server's
+  limit.
 
 ## The context
 

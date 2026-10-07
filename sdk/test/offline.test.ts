@@ -127,6 +127,32 @@ describe("suite 8: offline behaviour", () => {
     expect(client.isOn("rollout-30", { key: "user-1" })).toBe(true);
   });
 
+  it("a key over its rate limit keeps the last ruleset and waits as long as Retry-After says", async () => {
+    let limited = false;
+    const answeredAt: number[] = [];
+    const server = await serve((request, response) => {
+      answeredAt.push(performance.now());
+      if (limited) {
+        response.statusCode = 429;
+        response.setHeader("retry-after", "1");
+        response.end("{}");
+        return;
+      }
+      servingRuleset(() => production)(request, response);
+    });
+    const client = await init({ sdkKey: "flg_srv_test", baseUrl: server.url, pollIntervalMs: 20 });
+
+    limited = true;
+    const before = server.requests.length;
+    await waitFor(() => server.requests.length > before + 1, 5_000);
+    const refusedAt = answeredAt[before] ?? 0;
+    const retriedAt = answeredAt[before + 1] ?? 0;
+
+    expect(retriedAt - refusedAt).toBeGreaterThanOrEqual(950);
+    expect(client.version).toBe(7);
+    expect(client.isOn("rollout-30", { key: "user-1" })).toBe(true);
+  });
+
   it("a response that is not a ruleset never replaces the last ruleset", async () => {
     let garbage = false;
     const server = await serve((request, response) => {
