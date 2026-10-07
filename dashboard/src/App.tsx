@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 import { Layout } from "./components/Layout";
+import { ProjectHome } from "./pages/ProjectHome";
+import { ProjectsPage } from "./pages/ProjectsPage";
 import { SignInPage } from "./pages/SignInPage";
 import { Link, match, navigate, useLocation } from "./router";
 import { useSession } from "./session/session";
@@ -46,12 +48,12 @@ export function App() {
 }
 
 function Route({ location }: { location: string }) {
+  let params: Record<string, string> | null;
   if (match("/projects", location) !== null || match("/", location) !== null) {
-    return (
-      <Layout>
-        <h1>Projects</h1>
-      </Layout>
-    );
+    return <ProjectsPage />;
+  }
+  if ((params = match("/projects/:project", location)) !== null) {
+    return <ProjectHome project={params.project as string} />;
   }
   if (match("/sign-in", location) !== null) {
     return null;
