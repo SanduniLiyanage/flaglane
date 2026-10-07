@@ -657,3 +657,63 @@ the plain one; translating recorded states into the API's current vocabulary —
 rewritten on the way out stops being evidence, and the translation would have to know every past
 payload shape; per-flag and per-environment endpoints — three endpoints for one query, and the
 project-level events would have none.
+
+---
+
+## ADR-031 — The dashboard: one origin, a session per tab, staged edits
+
+Milestone 3 starts the dashboard, and three questions had to be settled before any of it was
+written. The Vite dev server runs on its own origin, and ADR-025 lets no cross-origin request reach
+`/api/**`, with `CrossOriginTest` asserting it. `SECURITY.md` says to keep the access token in
+memory, and ADR-012 gives no refresh token, so a reload loses the session. And the rollout control
+must carry whole percentages (ADR-011) and cannot pretend to work when it has no effect (ADR-009).
+
+**Decision.** *One origin, never CORS.* In development the Vite dev server proxies `/api` to the API,
+so the browser only ever talks to the origin that served the page. In the image the API serves the
+built dashboard itself: the Dockerfile builds `dashboard/` and the API serves it from `/`, with the
+dashboard's routes (`/sign-in`, `/projects/**`) forwarded to `index.html` and permitted
+individually, so every other path stays denied. The CORS policy is unchanged. The built page carries
+a Content-Security-Policy that allows scripts, styles and connections from its own origin only, set in
+`index.html` at build time, because the dev server's injected scripts would break it in development.
+
+*A session lives in one tab's memory, and the interface says so.* The token is held in a JavaScript
+variable, never in `localStorage` or `sessionStorage`. A reload, a new tab or closing the tab signs
+the user out, and the sign-in page states this rather than leaving it to be discovered. Because a
+reload is a sign-out, the interface keeps everything else in the URL: the project, the environment
+and the flag are path segments, and signing in returns to the page that asked for it, so a reload
+costs a password and nothing more. A page with unsaved changes asks before the tab is reloaded or
+closed. The session ends by itself when the token expires (8 hours) or the API answers 401, with
+the reason shown on the sign-in page. Signing out discards the token and says that this is all it
+does: a copied token stays valid until it expires (E-029).
+
+*Edits are staged and saved explicitly (FR-UI-007).* The fallthrough value and the rollout are a
+form with Save and Discard; Save sends one `PATCH` carrying only the fields that changed. The rollout
+is a range input of whole percentages, 0 to 100 in steps of 1, sent as `rolloutPercentage`, so no
+fraction can be produced on either side of the conversion. While the staged fallthrough value is
+`true` the slider is disabled with the reason beside it — every user who misses the rollout gets
+`true` anyway, so moving it changes nothing — and the value it holds is kept, not reset. The kill
+switch is not part of the form: turning a flag off or on is one confirmed action that saves at once
+and leaves any staged edits staged, because the control for an incident should not wait on a form.
+
+*Types are generated from the API's own document.* `dashboard/openapi.json` is a snapshot of
+`/v3/api-docs`. A backend test fails when the served document and the snapshot differ, and
+`npm run api:types` turns the snapshot into `src/api/schema.ts` with a small generator in
+`dashboard/scripts/`, which CI re-runs and diffs. The calls themselves are a thin hand-written
+`fetch` wrapper over those types.
+
+**Consequences.** The dashboard is one more thing in the image, and the image build needs Node.
+Every reload asks for the password again; that is the cost of a token that cannot be revoked
+(ADR-012) living nowhere a script on another tab or a stolen disk could read it. The generator
+understands the subset of OpenAPI the API uses and fails on anything else rather than guessing.
+Hashed asset files are served with Spring Security's default `no-store`, so the dashboard is
+downloaded on each visit; it is small, and caching them is left until it matters.
+
+**Rejected.** Widening CORS to the dev server's origin — the policy exists so that a page on another
+origin cannot drive `/api` with a token it obtained, and an exception for `localhost` is the kind that
+outlives its reason; a separate static host with a reverse proxy — a second deployable for a single
+instance (ADR-013); `sessionStorage` — it survives reloads, which is the point, and is readable by any
+script injected into the page, which is the risk `SECURITY.md` names; saving the kill switch through
+the form — a second step during an incident; `openapi-typescript` — it requires TypeScript 5's compiler
+API, which TypeScript 7 does not provide, and our document needs a fraction of what it handles;
+hash-based routes — they would avoid the server-side forwarding, at the price of URLs that read as a
+workaround.
