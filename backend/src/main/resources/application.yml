@@ -45,6 +45,11 @@ flaglane:
     # idle client may make at once (ADR-029). Answered with 429 and Retry-After beyond it.
     auth-rate-limit:
       per-minute: ${FLAGLANE_AUTH_RATE_LIMIT_PER_MINUTE:10}
+    # Serving API requests a minute per API key, a 304 counting as a tenth of one, which is also the
+    # burst an idle key may make at once (ADR-035). 600 is 500 SDK processes polling every five
+    # seconds on one key. Answered with 429 and Retry-After beyond it.
+    sdk-rate-limit:
+      per-minute: ${FLAGLANE_SDK_RATE_LIMIT_PER_MINUTE:600}
 
 springdoc:
   # Every answer the API sends is JSON; without this, every response is documented as */*.

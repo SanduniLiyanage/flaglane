@@ -45,6 +45,9 @@ services:
       FLAGLANE_DB_APP_USER: flaglane_app
       FLAGLANE_DB_APP_PASSWORD: ${FLAGLANE_DB_APP_PASSWORD:?set FLAGLANE_DB_APP_PASSWORD in .env}
       FLAGLANE_JWT_SECRET: ${FLAGLANE_JWT_SECRET:?set FLAGLANE_JWT_SECRET in .env}
+      # Optional, passed through only when set in .env; unset, the API's own defaults apply.
+      FLAGLANE_AUTH_RATE_LIMIT_PER_MINUTE:
+      FLAGLANE_SDK_RATE_LIMIT_PER_MINUTE:
     ports:
       - "8080:8080"
     # No healthcheck: the runtime image carries no HTTP client, and nothing in the stack waits

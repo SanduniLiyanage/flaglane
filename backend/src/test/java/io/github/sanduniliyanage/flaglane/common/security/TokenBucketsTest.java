@@ -152,11 +152,93 @@ class TokenBucketsTest {
   }
 
   @Test
-  void aLimitOutsideOneToSixtyThousandAMinuteIsRefused() {
+  void aRequestMayTakeSeveralTokensAndARefusalTakesNone() {
+    TokenBuckets buckets = new TokenBuckets(30, 100, clock);
+
+    assertThat(buckets.tryTake("key", 10).allowed()).isTrue();
+    assertThat(buckets.tryTake("key", 10).allowed()).isTrue();
+    assertThat(drain(buckets, "key", 10)).isEqualTo(10);
+    Decision full = buckets.tryTake("key", 10);
+    Decision single = buckets.tryTake("key");
+
+    assertThat(full.allowed()).isFalse();
+    assertThat(full.retryAfter()).as("ten tokens at two seconds each").isEqualTo(seconds(20));
+    assertThat(single.allowed()).isFalse();
+    assertThat(single.retryAfter()).isEqualTo(seconds(2));
+  }
+
+  @Test
+  void aBucketWithTooFewTokensForALargeRequestStillServesSmallOnes() {
+    TokenBuckets buckets = new TokenBuckets(30, 100, clock);
+    buckets.tryTake("key", 10);
+    buckets.tryTake("key", 10);
+    drain(buckets, "key", 5);
+
+    assertThat(buckets.tryTake("key", 10).allowed()).as("5 tokens left, 10 asked").isFalse();
+    assertThat(drain(buckets, "key", 6)).isEqualTo(5);
+  }
+
+  @Test
+  void aRequestTakesFromOneTokenToAWholeBucket() {
+    TokenBuckets buckets = new TokenBuckets(30, 100, clock);
+
+    assertThatThrownBy(() -> buckets.tryTake("key", 0))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> buckets.tryTake("key", 31))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThat(buckets.tryTake("key", 30).allowed()).isTrue();
+  }
+
+  @Test
+  void anIntervalShorterThanTheClocksMillisecondRefillsByTheElapsedTime() {
+    // Six million a minute: a token every 10 µs, a hundred every millisecond.
+    TokenBuckets buckets = new TokenBuckets(TokenBuckets.MAX_PER_MINUTE, 100, clock);
+    drain(buckets, "key", TokenBuckets.MAX_PER_MINUTE);
+    Decision empty = buckets.tryTake("key");
+
+    clock.advance(Duration.ofMillis(1));
+
+    assertThat(empty.allowed()).isFalse();
+    assertThat(empty.retryAfter()).isEqualTo(Duration.ofNanos(10_000));
+    assertThat(empty.retryAfterSeconds()).isEqualTo(1);
+    assertThat(drain(buckets, "key", 101)).isEqualTo(100);
+  }
+
+  @Test
+  void aForgottenKeyStartsAgainWithAFullBucket() {
+    TokenBuckets buckets = new TokenBuckets(10, 100, clock);
+    drain(buckets, "key", 10);
+
+    buckets.forget("key");
+
+    assertThat(buckets.holds("key")).isFalse();
+    assertThat(drain(buckets, "key", 11)).isEqualTo(10);
+  }
+
+  @Test
+  void droppingFullBucketsKeepsTheOnesStillRefilling() {
+    TokenBuckets buckets = new TokenBuckets(10, 100, clock);
+    buckets.tryTake("refilled");
+    clock.advance(Duration.ofSeconds(6));
+    drain(buckets, "draining", 10);
+
+    buckets.dropFull();
+
+    assertThat(buckets.holds("refilled")).isFalse();
+    assertThat(buckets.holds("draining")).isTrue();
+    assertThat(buckets.tryTake("draining").allowed()).as("still limited").isFalse();
+  }
+
+  @Test
+  void aLimitOutsideOneToSixMillionTokensAMinuteIsRefused() {
     assertThatThrownBy(() -> new TokenBuckets(0, 100, clock))
         .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> new TokenBuckets(60_001, 100, clock))
+    assertThatThrownBy(() -> new TokenBuckets(TokenBuckets.MAX_PER_MINUTE + 1, 100, clock))
         .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  private static Duration seconds(long seconds) {
+    return Duration.ofSeconds(seconds);
   }
 
   /** Makes up to {@code attempts} requests and returns how many were allowed. */

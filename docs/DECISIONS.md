@@ -803,3 +803,48 @@ more of one; converting recorded basis points to percentages — a record rewrit
 not the record, and a rollout that is not a whole percentage would need a fraction the dashboard
 never shows; a "reveal key" control — there is nothing to reveal, and a button suggesting otherwise
 would be the interface pretending.
+
+---
+
+## ADR-035 — The serving API's limit per key, with a `304` at a tenth of the price
+
+NFR-SEC-005 specified an in-memory token bucket per key, 600 requests a minute, and E-039 added two
+conditions when polling replaced the stream: the limit has to fit fleets of SDK processes that
+share one key, and a `304` should cost less than a full answer. Slice 1.6 wrote the bucket,
+`common/security/TokenBuckets`, for this. **Decision:** every `/sdk/**` request is charged to the key
+that authenticated it, in a bucket kept by key id, by an interceptor that runs before the handler,
+so a refused request reads no body and evaluates nothing. A key may make
+`FLAGLANE_SDK_RATE_LIMIT_PER_MINUTE` requests a minute, 600 by default and at most 600,000, and the
+same number at once after a quiet minute. A request that will be answered `304` costs a tenth of
+one: the interceptor compares its `If-None-Match` with the ETag the ruleset cache holds for the
+key's environment and key type, the comparison the controller makes. Everything else costs one: a
+ruleset download, an evaluation, a request whose ETag is stale. Ten to one is a judgment, not a
+measurement: a `304` writes headers only, while a full answer writes the ruleset, 8 to 82 KiB
+gzipped and about 500 KiB plain for the thousand-flag environment `docs/BENCHMARKS.md` measures,
+and ten to one makes polling cheap without making downloads free. `TokenBuckets` now takes a cost in
+tokens and keeps its time in nanoseconds, so a tenth of a request at the highest limit, 10 µs, is a
+whole interval. Beyond the allowance the answer is 429 with `Retry-After` in whole seconds, rounded
+up, and the SDK waits that long, between its poll interval and its longest backoff, on its last
+ruleset; it already did so for a 503. A revoked key's bucket is dropped when the revoke commits, and
+once a minute every bucket that has refilled is dropped, which also clears one recreated by a request
+that authenticated a moment before the revoke; the table therefore holds keys used in the last minute
+that can still be used, at most 100,000 of them. **Consequences:** at the default, one key serves 500
+processes polling every five seconds, or a mix of polls and downloads costing the same; a larger
+fleet raises the limit or gives its services keys of their own, which revocation favours anyway. A
+client key is shared by every browser that loads the page, so its limit also caps how many pages can
+poll at once, 500 at the default: beyond that, pages are refused, keep the ruleset they have and ask
+again later, and a page opened while the key is over its limit answers with its code's fallbacks
+until a request gets through. Anyone holding a key can spend its allowance, and anyone who loads the
+page holds a client key, so its allowance can be spent on purpose; the effect is staleness and
+fallbacks, never an application error. The limit protects the server and other keys from one key,
+not the users of one key from each other. A request with an unknown key is not limited, there being
+no key to charge; it costs a hash and a map lookup before its 401. The interceptor and the controller
+read the cache separately, so a ruleset that changes between the two is charged as it was a moment
+earlier, once. Buckets are per instance (ADR-013). **Rejected:** counting every request alike — fifty
+polling processes would reach the default, as E-039 found, and raising the default instead would
+make downloads as cheap as polls; charging in the controller once the answer is known — exact, but a
+refused evaluation would have had its body read and validated first, and a malformed one would never
+be charged; a second limit per client address for client keys — closer to what a public key needs,
+but a table of addresses per key, behind proxies that hide them, for a ceiling the setting already
+moves; separate settings per key type — two numbers whose right values depend on the same fleet;
+Bucket4j — ADR-029's reasons.

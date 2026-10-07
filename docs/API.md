@@ -227,8 +227,8 @@ unit, because an audit record that is translated on the way out is no longer the
 
 ## Serving API — `/sdk/**`
 
-Auth: `Authorization: Bearer <sdk key>`. Rate limited per key (NFR-SEC-005) — **not yet**, slice
-4.7.
+Auth: `Authorization: Bearer <sdk key>`. Rate limited per key, with a `304` at a tenth of the price
+of any other answer (see [Rate limit](#rate-limit)).
 
 | Method | Path | Purpose |
 | --- | --- | --- |
@@ -359,6 +359,28 @@ ruleset instead of two, and a missed event self-corrects on the next poll.
 
 A heartbeat comment goes out every 30 seconds (FR-STR-002); idle proxies close silent connections.
 
+### Rate limit
+
+Each key may make 600 requests a minute by default, `FLAGLANE_SDK_RATE_LIMIT_PER_MINUTE` to change
+it, and a key that has been idle may make all of them at once. A request answered `304` counts as a
+tenth of one, so a key serves 500 SDK processes polling every five seconds; a ruleset download, an
+evaluation, and a request whose ETag is stale count as one each (NFR-SEC-005, ADR-035). Beyond the
+allowance, before the request is handled or its body read:
+
+```json
+429
+Retry-After: 2
+{ "type": "about:blank", "title": "Too Many Requests", "status": 429,
+  "detail": "Too many requests with this API key; try again shortly" }
+```
+
+The answer carries the cache headers every `/sdk/**` answer does. The SDK keeps its last ruleset and
+asks again once `Retry-After` has passed. Keys are limited separately; a revoked key's allowance is
+discarded with it; allowances are per instance, which is exact on the single instance v0.x runs
+(ADR-013). A client key is shared by every browser that loads the page, so at the default no more
+than 500 pages can poll one at once: raise the limit for more. A request with an unknown key is a
+401 and is not counted.
+
 ### Error behaviour
 
 The serving API is on the customer's critical path. Any 5xx must be safe to ignore — the SDK
@@ -369,7 +391,7 @@ be diagnosable:
 | --- | --- |
 | 401 | Missing, malformed, or revoked key. One answer for all three |
 | 400 | Malformed request body on `POST /sdk/evaluate`, or a flag without a `fallback` |
-| 429 | Rate limit exceeded, with `Retry-After` (slice 4.7) |
+| 429 | The key's allowance is used up for now, with `Retry-After` in seconds (NFR-SEC-005) |
 | 503 | Ruleset not loaded for the key's environment yet, with `Retry-After: 5`; SDK retries with backoff |
 
 There is deliberately no 404 for an unknown flag. 404 on `/sdk/**` means a path that does not

@@ -332,6 +332,16 @@
               }
             }
           },
+          "429" : {
+            "description" : "The key has used its allowance for now; retry after the time given. A 304 costs a tenth of any other answer",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "503" : {
             "description" : "The ruleset is not loaded yet; retry after the time given",
             "content" : {
@@ -1231,6 +1241,16 @@
           },
           "401" : {
             "description" : "Missing, malformed or revoked key",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "429" : {
+            "description" : "The key has used its allowance for now; retry after the time given. A 304 costs a tenth of any other answer",
             "content" : {
               "application/problem+json" : {
                 "schema" : {

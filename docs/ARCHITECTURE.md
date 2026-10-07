@@ -220,8 +220,9 @@ Isolation is structural:
 | Missing user key | Overrides and rollout skipped, rules still evaluated, then `fallthroughValue` |
 | Engine exception | `fallthroughValue` returned, warning logged, never propagated |
 | Database down | Serving continues from cache, including key authentication; management API returns 503; readiness stays up. One exception: the first management request to borrow a pooled connection that died with the database gets a 500, because the pool reports only that the connection is closed |
+| A key over its rate limit | 429 with `Retry-After`, decided before the request is handled; a `304` costs a tenth of any other answer (ADR-035). The SDK keeps its last ruleset and waits |
 | Flaglane unreachable from SDK | Last known ruleset, then code-level fallback |
-| A poll fails | Last ruleset kept; retried with exponential backoff and jitter up to 30 s, or after a 503's `Retry-After` |
+| A poll fails | Last ruleset kept; retried with exponential backoff and jitter up to 30 s, or after the `Retry-After` of a 503 or a 429 |
 
 The last two are the product's central promise. Everything else in this document is negotiable.
 

@@ -50,6 +50,12 @@ import org.springframework.web.bind.annotation.RestController;
     description = "Missing, malformed or revoked key",
     content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
 @ApiResponse(
+    responseCode = "429",
+    description =
+        "The key has used its allowance for now; retry after the time given. A 304 costs a tenth"
+            + " of any other answer",
+    content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+@ApiResponse(
     responseCode = "503",
     description = "The ruleset is not loaded yet; retry after the time given",
     content = @Content(schema = @Schema(implementation = ProblemDetail.class)))

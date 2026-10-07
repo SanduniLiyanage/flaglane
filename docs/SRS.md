@@ -230,7 +230,7 @@ will be built after v0.1; until then no `/sdk/stream` exists and SDKs poll (FR-S
   it holds, and swaps in a changed ruleset atomically. An unchanged ruleset costs an empty 304
   (E-039).
 - **FR-SDK-004** If a poll fails, the SDK retries with exponential backoff and jitter, up to 30
-  seconds, honouring a 503's `Retry-After`, and serves the last ruleset meanwhile.
+  seconds, honouring the `Retry-After` of a 503 or a 429, and serves the last ruleset meanwhile.
 - **FR-SDK-005** If the service is unreachable, the SDK serves the last known ruleset. With no
   ruleset ever fetched, it returns the caller-supplied fallback.
 - **FR-SDK-006** The SDK never throws from `isOn()`.
@@ -292,13 +292,16 @@ will be built after v0.1; until then no `/sdk/stream` exists and SDKs poll (FR-S
 - **NFR-SEC-004** Tenant isolation is enforced at the repository layer, not by convention.
 - **NFR-SEC-005** `GET /sdk/config` and `POST /sdk/evaluate` are rate limited per key by an
   in-memory token bucket: 600 requests per minute per key by default, configurable, answering 429
-  with `Retry-After`. `GET /sdk/stream` is counted once when the connection is established and
-  never per event — a stream is one request that lasts hours, and a per-request limiter would
-  either close it or be meaningless. Buckets are per instance, which is exact while Flaglane runs
-  as a single instance and is a limitation to revisit with the multi-instance work. With SDKs
-  polling every five seconds, each SDK process makes twelve requests a minute, so one key shared
-  by fifty processes reaches the default limit: the limit must be sized for polling fleets when it
-  is built, and a `304` should cost less than a full answer (E-039).
+  with `Retry-After` before the request is handled. A request answered `304` counts as a tenth of a
+  request, so the default serves 500 SDK processes polling every five seconds on one key — twelve
+  polls a minute each — or 600 ruleset downloads or evaluations a minute, or a mix of the two; a
+  key that has been idle may spend its whole minute at once. A revoked key's bucket is dropped when
+  the revoke commits. `GET /sdk/stream`, once it exists, is counted once when the connection is
+  established and never per event — a stream is one request that lasts hours, and a per-request
+  limiter would either close it or be meaningless. Buckets are per instance, which is exact while
+  Flaglane runs as a single instance and is a limitation to revisit with the multi-instance work.
+  A client key is shared by every browser that loads the page, so its limit is also a ceiling on
+  how many pages can poll at once, 500 at the default (E-039, E-042).
 - **NFR-SEC-006** `POST /api/auth/register` and `POST /api/auth/login` share a rate limit per client
   address, by the same token bucket: 10 requests a minute by default, configurable, answering 429
   with `Retry-After` before the request body is read or a password hashed. An IPv6 /64 counts as one
@@ -368,3 +371,4 @@ Corrections to this document, recorded rather than silently edited.
 | E-039 | FR-SDK-003, FR-SDK-004, NFR-PER-003, FR-KEY-003, NFR-SEC-005; FR-SRV-003 and FR-STR-001 to FR-STR-004 deferred | Server-Sent Events are not in v0.1: SDKs poll `GET /sdk/config` every five seconds with the ruleset's ETag, and back off with jitter while it fails. A change reaches SDKs in about five seconds rather than under one. NFR-SEC-005 notes that polling fleets must fit the rate limit. | The roadmap's first cut was invoked (ADR-027): the estimate exceeded six weeks, and the SDK, its parity suite and the demo application are on the never-cut list. ADR-004 had already named five-second polling as the accepted degradation. |
 | E-040 | NFR-SEC-006 (new) | Registration and sign-in are rate limited per client address, before any password is hashed. | Slice 1.10 exposes both endpoints publicly, and each attempt costs a bcrypt hash. No requirement limited them: NFR-SEC-005 covers the serving API only (ADR-029). |
 | E-041 | FR-AUD-003 | The trail is read per project, narrowed by an environment or flag key, and each entry names its actor, environment and flag; an environment deleted since keeps the key it had. Recorded states are returned as recorded. | `docs/API.md` already specified one project endpoint, and project creation, environment deletion and key events belong to no flag. Entries that gave ids would have been unreadable to the dashboard, which names everything by key (ADR-030). |
+| E-042 | NFR-SEC-005, FR-SDK-004 | A `304` counts as a tenth of a request, so the default of 600 a minute serves 500 polling SDK processes per key; the limit is applied before the request is handled; a revoked key's bucket is dropped. The SDK waits out a 429's `Retry-After` as it does a 503's. | E-039 left the limit to be sized for polling fleets when it was built: counted as a whole request each, a `304` — the commonest answer by far, and headers only — let fifty processes polling one key reach the default. And an SDK that ignored a 429's `Retry-After` asked again on its backoff schedule, sooner than the server had said it would answer (ADR-035). |
