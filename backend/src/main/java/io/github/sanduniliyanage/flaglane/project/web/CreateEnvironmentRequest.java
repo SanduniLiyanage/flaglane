@@ -7,5 +7,11 @@ import jakarta.validation.constraints.Size;
 
 /** {@code POST /api/projects/{projectKey}/environments}. */
 public record CreateEnvironmentRequest(
-    @Schema(example = "qa", description = "Unique within the project") @ResourceKey String key,
+    @Schema(
+            example = "qa",
+            description = "Unique within the project",
+            requiredMode = Schema.RequiredMode.REQUIRED,
+            pattern = ResourceKey.REGEX)
+        @ResourceKey
+        String key,
     @Schema(example = "QA") @NotBlank @Size(max = 100) String name) {}

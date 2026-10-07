@@ -9,10 +9,18 @@ import io.swagger.v3.oas.annotations.info.Info;
 import io.swagger.v3.oas.annotations.info.License;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
 import io.swagger.v3.oas.models.Operation;
+import io.swagger.v3.oas.models.PathItem;
+import io.swagger.v3.oas.models.media.Content;
+import io.swagger.v3.oas.models.media.MediaType;
+import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.media.StringSchema;
 import io.swagger.v3.oas.models.parameters.Parameter;
 import io.swagger.v3.oas.models.parameters.PathParameter;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springdoc.core.customizers.OpenApiCustomizer;
@@ -92,6 +100,106 @@ public class OpenApiConfiguration {
                 }
               });
     };
+  }
+
+  /**
+   * Marks every property of a success response's schemas required, because a response record writes
+   * every component, null or not; left unmarked, a client generated from the document would treat
+   * every field of every answer as possibly absent. A schema that a request body also uses keeps
+   * its declared requirements: in a request, leaving a field out means something. Error answers are
+   * Problem Details and are labelled with the media type they are sent as.
+   */
+  @Bean
+  OpenApiCustomizer describeResponses() {
+    return openApi -> {
+      if (openApi.getPaths() == null || openApi.getComponents() == null) {
+        return;
+      }
+      Map<String, Schema> schemas = openApi.getComponents().getSchemas();
+      if (schemas == null) {
+        return;
+      }
+      Set<String> answered = new HashSet<>();
+      Set<String> sent = new HashSet<>();
+      for (PathItem item : openApi.getPaths().values()) {
+        for (Operation operation : item.readOperations()) {
+          if (operation.getRequestBody() != null
+              && operation.getRequestBody().getContent() != null) {
+            operation
+                .getRequestBody()
+                .getContent()
+                .values()
+                .forEach(media -> collect(media.getSchema(), schemas, sent));
+          }
+          if (operation.getResponses() == null) {
+            continue;
+          }
+          operation
+              .getResponses()
+              .forEach(
+                  (status, response) -> {
+                    if (response.getContent() == null) {
+                      return;
+                    }
+                    if (status.startsWith("2")) {
+                      response
+                          .getContent()
+                          .values()
+                          .forEach(media -> collect(media.getSchema(), schemas, answered));
+                    } else {
+                      relabelProblems(response.getContent());
+                    }
+                  });
+        }
+      }
+      answered.removeAll(sent);
+      for (String name : answered) {
+        Schema<?> schema = schemas.get(name);
+        if (schema != null && schema.getProperties() != null) {
+          schema.setRequired(new ArrayList<>(schema.getProperties().keySet()));
+        }
+      }
+    };
+  }
+
+  /**
+   * Adds the component schemas {@code schema} refers to, and the ones they refer to, to {@code
+   * into}.
+   */
+  private static void collect(Schema<?> schema, Map<String, Schema> schemas, Set<String> into) {
+    if (schema == null) {
+      return;
+    }
+    String ref = schema.get$ref();
+    if (ref != null) {
+      String name = ref.substring(ref.lastIndexOf('/') + 1);
+      if (into.add(name)) {
+        collect(schemas.get(name), schemas, into);
+      }
+      return;
+    }
+    if (schema.getProperties() != null) {
+      schema.getProperties().values().forEach(property -> collect(property, schemas, into));
+    }
+    collect(schema.getItems(), schemas, into);
+    if (schema.getAdditionalProperties() instanceof Schema<?> values) {
+      collect(values, schemas, into);
+    }
+  }
+
+  private static void relabelProblems(Content content) {
+    String problem = "#/components/schemas/ProblemDetail";
+    List<String> labels =
+        content.entrySet().stream()
+            .filter(entry -> entry.getValue().getSchema() != null)
+            .filter(entry -> problem.equals(entry.getValue().getSchema().get$ref()))
+            .map(Map.Entry::getKey)
+            .toList();
+    for (String label : labels) {
+      MediaType media = content.remove(label);
+      content.addMediaType(
+          org.springframework.http.MediaType.APPLICATION_PROBLEM_JSON_VALUE, media);
+    }
   }
 
   private static void declare(Operation operation, String name) {

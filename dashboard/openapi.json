@@ -49,10 +49,20 @@
           }
         } ],
         "responses" : {
+          "200" : {
+            "description" : "The rules, in priority order",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RulesResponse"
+                }
+              }
+            }
+          },
           "404" : {
             "description" : "No such project, environment or flag among yours",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -105,7 +115,7 @@
           "400" : {
             "description" : "A rule cannot be applied; `errors` names it",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -115,9 +125,19 @@
           "409" : {
             "description" : "The flag is archived",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "The rules as stored",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RulesResponse"
                 }
               }
             }
@@ -125,7 +145,7 @@
           "404" : {
             "description" : "No such project, environment or flag among yours",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -166,10 +186,20 @@
           }
         } ],
         "responses" : {
+          "200" : {
+            "description" : "The overrides",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OverridesResponse"
+                }
+              }
+            }
+          },
           "404" : {
             "description" : "No such project, environment or flag among yours",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -222,9 +252,19 @@
           "409" : {
             "description" : "The flag is archived",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "The overrides as stored",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/OverridesResponse"
                 }
               }
             }
@@ -232,7 +272,7 @@
           "404" : {
             "description" : "No such project, environment or flag among yours",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -265,7 +305,7 @@
           "200" : {
             "description" : "One result per flag",
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/EvaluateResponse"
                 }
@@ -275,7 +315,7 @@
           "400" : {
             "description" : "Malformed body, or a flag without a fallback",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -285,7 +325,7 @@
           "401" : {
             "description" : "Missing, malformed or revoked key",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -295,7 +335,7 @@
           "503" : {
             "description" : "The ruleset is not loaded yet; retry after the time given",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -318,7 +358,7 @@
           "200" : {
             "description" : "OK",
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "type" : "array",
                   "items" : {
@@ -352,7 +392,7 @@
           "201" : {
             "description" : "Created",
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProjectResponse"
                 }
@@ -362,7 +402,7 @@
           "409" : {
             "description" : "The key is taken",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -390,10 +430,23 @@
           }
         } ],
         "responses" : {
+          "200" : {
+            "description" : "The project's flags",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/FlagResponse"
+                  }
+                }
+              }
+            }
+          },
           "404" : {
             "description" : "No such project or flag among yours",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -432,7 +485,7 @@
           "201" : {
             "description" : "Created",
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/FlagResponse"
                 }
@@ -442,7 +495,7 @@
           "409" : {
             "description" : "The key is used by a live or an archived flag",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -452,7 +505,7 @@
           "404" : {
             "description" : "No such project or flag among yours",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -487,10 +540,20 @@
           }
         } ],
         "responses" : {
+          "200" : {
+            "description" : "The flag, restored",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlagResponse"
+                }
+              }
+            }
+          },
           "404" : {
             "description" : "No such project or flag among yours",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -525,10 +588,20 @@
           }
         } ],
         "responses" : {
+          "200" : {
+            "description" : "The flag, archived",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlagResponse"
+                }
+              }
+            }
+          },
           "404" : {
             "description" : "No such project or flag among yours",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -555,10 +628,23 @@
           }
         } ],
         "responses" : {
+          "200" : {
+            "description" : "The project's environments",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/EnvironmentResponse"
+                  }
+                }
+              }
+            }
+          },
           "404" : {
             "description" : "No such project or environment among yours",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -597,7 +683,7 @@
           "201" : {
             "description" : "Created",
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/EnvironmentResponse"
                 }
@@ -607,7 +693,7 @@
           "409" : {
             "description" : "The project already has an environment with this key",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -617,7 +703,7 @@
           "404" : {
             "description" : "No such project or environment among yours",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -652,10 +738,23 @@
           }
         } ],
         "responses" : {
+          "200" : {
+            "description" : "The environment's keys, revoked ones included",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/ApiKeyResponse"
+                  }
+                }
+              }
+            }
+          },
           "404" : {
             "description" : "No such project, environment or key among yours",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -701,7 +800,7 @@
           "201" : {
             "description" : "Issued",
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/IssuedApiKeyResponse"
                 }
@@ -711,7 +810,7 @@
           "404" : {
             "description" : "No such project, environment or key among yours",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -744,7 +843,7 @@
           "201" : {
             "description" : "Registered",
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AccountResponse"
                 }
@@ -754,7 +853,7 @@
           "400" : {
             "description" : "Malformed email, or a password outside the policy",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -764,7 +863,7 @@
           "409" : {
             "description" : "An account already uses this email address",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -780,7 +879,7 @@
               }
             },
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -810,7 +909,7 @@
           "200" : {
             "description" : "Signed in",
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AccessTokenResponse"
                 }
@@ -820,7 +919,7 @@
           "401" : {
             "description" : "Unknown email or wrong password; the response does not say which",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -836,7 +935,7 @@
               }
             },
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -867,10 +966,20 @@
           }
         } ],
         "responses" : {
+          "200" : {
+            "description" : "The flag",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlagResponse"
+                }
+              }
+            }
+          },
           "404" : {
             "description" : "No such project or flag among yours",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -916,9 +1025,19 @@
           "409" : {
             "description" : "The flag is archived",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "The flag as edited",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlagResponse"
                 }
               }
             }
@@ -926,7 +1045,7 @@
           "404" : {
             "description" : "No such project or flag among yours",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -967,10 +1086,20 @@
           }
         } ],
         "responses" : {
+          "200" : {
+            "description" : "The configuration",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlagConfigResponse"
+                }
+              }
+            }
+          },
           "404" : {
             "description" : "No such project, environment or flag among yours",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -1023,9 +1152,19 @@
           "409" : {
             "description" : "The flag is archived",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "The configuration as changed",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlagConfigResponse"
                 }
               }
             }
@@ -1033,7 +1172,7 @@
           "404" : {
             "description" : "No such project, environment or flag among yours",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -1085,7 +1224,7 @@
           "401" : {
             "description" : "Missing, malformed or revoked key",
             "content" : {
-              "application/json" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -1095,7 +1234,7 @@
           "503" : {
             "description" : "The ruleset is not loaded yet; retry after the time given",
             "content" : {
-              "application/json" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -1133,7 +1272,7 @@
           "200" : {
             "description" : "The configurations",
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "type" : "array",
                   "items" : {
@@ -1146,7 +1285,7 @@
           "404" : {
             "description" : "No such project or environment among yours",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -1215,7 +1354,7 @@
           "200" : {
             "description" : "One page",
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AuditPageResponse"
                 }
@@ -1225,7 +1364,7 @@
           "400" : {
             "description" : "A `before` that is not a cursor, or a `limit` outside 1 to 100",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -1235,7 +1374,7 @@
           "404" : {
             "description" : "No such project among yours, or no such environment or flag in it",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -1276,7 +1415,7 @@
           "409" : {
             "description" : "The environment holds an API key that is not revoked",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -1286,7 +1425,7 @@
           "404" : {
             "description" : "No such project or environment among yours",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -1335,7 +1474,7 @@
           "404" : {
             "description" : "No such project, environment or key among yours",
             "content" : {
-              "*/*" : {
+              "application/problem+json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ProblemDetail"
                 }
@@ -1423,6 +1562,18 @@
           }
         }
       },
+      "RulesResponse" : {
+        "type" : "object",
+        "properties" : {
+          "rules" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/RuleRequest"
+            }
+          }
+        },
+        "required" : [ "rules" ]
+      },
       "OverrideRequest" : {
         "type" : "object",
         "properties" : {
@@ -1449,6 +1600,18 @@
             },
             "maxItems" : 1000,
             "minItems" : 0
+          }
+        },
+        "required" : [ "overrides" ]
+      },
+      "OverridesResponse" : {
+        "type" : "object",
+        "properties" : {
+          "overrides" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/OverrideRequest"
+            }
           }
         },
         "required" : [ "overrides" ]
@@ -1521,7 +1684,8 @@
               "$ref" : "#/components/schemas/Result"
             }
           }
-        }
+        },
+        "required" : [ "environment", "results", "version" ]
       },
       "Result" : {
         "type" : "object",
@@ -1533,7 +1697,8 @@
             "type" : "string",
             "enum" : [ "OFF", "OVERRIDE", "RULE_MATCH", "ROLLOUT", "FALLTHROUGH", "FLAG_NOT_FOUND", "ERROR" ]
           }
-        }
+        },
+        "required" : [ "reason", "value" ]
       },
       "CreateProjectRequest" : {
         "type" : "object",
@@ -1541,7 +1706,8 @@
           "key" : {
             "type" : "string",
             "description" : "Unique across Flaglane; immutable",
-            "example" : "storefront"
+            "example" : "storefront",
+            "pattern" : "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
           },
           "name" : {
             "type" : "string",
@@ -1550,7 +1716,7 @@
             "minLength" : 0
           }
         },
-        "required" : [ "name" ]
+        "required" : [ "key", "name" ]
       },
       "ProjectResponse" : {
         "type" : "object",
@@ -1567,7 +1733,8 @@
             "type" : "string",
             "format" : "date-time"
           }
-        }
+        },
+        "required" : [ "createdAt", "key", "name" ]
       },
       "CreateFlagRequest" : {
         "type" : "object",
@@ -1575,7 +1742,8 @@
           "key" : {
             "type" : "string",
             "description" : "Unique in the project, archived flags included; can never change",
-            "example" : "new-checkout"
+            "example" : "new-checkout",
+            "pattern" : "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
           },
           "name" : {
             "type" : "string",
@@ -1594,7 +1762,7 @@
             "description" : "Whether client keys may read it. Defaults to false: browser keys are public"
           }
         },
-        "required" : [ "name" ]
+        "required" : [ "key", "name" ]
       },
       "FlagResponse" : {
         "type" : "object",
@@ -1622,7 +1790,8 @@
             "type" : "string",
             "format" : "date-time"
           }
-        }
+        },
+        "required" : [ "archivedAt", "clientSideVisible", "createdAt", "description", "key", "name" ]
       },
       "CreateEnvironmentRequest" : {
         "type" : "object",
@@ -1630,7 +1799,8 @@
           "key" : {
             "type" : "string",
             "description" : "Unique within the project",
-            "example" : "qa"
+            "example" : "qa",
+            "pattern" : "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
           },
           "name" : {
             "type" : "string",
@@ -1639,7 +1809,7 @@
             "minLength" : 0
           }
         },
-        "required" : [ "name" ]
+        "required" : [ "key", "name" ]
       },
       "EnvironmentResponse" : {
         "type" : "object",
@@ -1656,7 +1826,8 @@
             "type" : "string",
             "format" : "date-time"
           }
-        }
+        },
+        "required" : [ "createdAt", "key", "name" ]
       },
       "IssueApiKeyRequest" : {
         "type" : "object",
@@ -1701,7 +1872,8 @@
             "description" : "The key. Shown once and never again",
             "example" : "flg_srv_Xk3mP9qaR2vT8wY1zB4cD6eF0gH5jK7lM9nQ2sU4xW6"
           }
-        }
+        },
+        "required" : [ "createdAt", "id", "key", "name", "prefix", "type" ]
       },
       "RegisterRequest" : {
         "type" : "object",
@@ -1747,7 +1919,8 @@
             "type" : "string",
             "format" : "date-time"
           }
-        }
+        },
+        "required" : [ "createdAt", "displayName", "email", "id" ]
       },
       "LoginRequest" : {
         "type" : "object",
@@ -1780,7 +1953,8 @@
             "type" : "string",
             "format" : "date-time"
           }
-        }
+        },
+        "required" : [ "accessToken", "expiresAt", "tokenType" ]
       },
       "UpdateFlagRequest" : {
         "type" : "object",
@@ -1861,7 +2035,44 @@
             "type" : "string",
             "format" : "date-time"
           }
-        }
+        },
+        "required" : [ "enabled", "environment", "fallthroughValue", "flagKey", "offValue", "rolloutPercentage", "rolloutSalt", "updatedAt" ]
+      },
+      "ApiKeyResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "name" : {
+            "type" : "string",
+            "example" : "checkout-service"
+          },
+          "type" : {
+            "type" : "string",
+            "enum" : [ "server", "client" ]
+          },
+          "prefix" : {
+            "type" : "string",
+            "description" : "Enough to tell keys apart; not secret",
+            "example" : "flg_srv_Xk3mP9qa"
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "lastUsedAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time",
+            "description" : "Accurate to about a minute"
+          },
+          "revokedAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time"
+          }
+        },
+        "required" : [ "createdAt", "id", "lastUsedAt", "name", "prefix", "revokedAt", "type" ]
       },
       "Actor" : {
         "type" : "object",
@@ -1874,7 +2085,8 @@
             "type" : [ "string", "null" ],
             "example" : "Amara"
           }
-        }
+        },
+        "required" : [ "displayName", "email" ]
       },
       "AuditEntryResponse" : {
         "type" : "object",
@@ -1919,7 +2131,8 @@
             "additionalProperties" : { },
             "description" : "The state after, as recorded; null for a deletion"
           }
-        }
+        },
+        "required" : [ "action", "actor", "createdAt", "environment", "environmentDeleted", "flag", "id", "newValue", "previousValue" ]
       },
       "AuditPageResponse" : {
         "type" : "object",
@@ -1936,7 +2149,8 @@
             "description" : "Pass as `before` for the next page; null when this page is the last",
             "example" : "2026-10-05T09:30:00.123456Z,0f6b3b5e-7c2a-4f5e-9d61-2a4b8f0e1c3d"
           }
-        }
+        },
+        "required" : [ "entries", "next" ]
       }
     },
     "securitySchemes" : {

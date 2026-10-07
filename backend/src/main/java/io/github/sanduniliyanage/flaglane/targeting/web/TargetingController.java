@@ -76,6 +76,7 @@ public class TargetingController {
 
   @GetMapping("/rules")
   @Operation(summary = "Get a flag's rules in an environment", description = "In priority order.")
+  @ApiResponse(responseCode = "200", description = "The rules, in priority order")
   RulesResponse rules(EnvironmentScope environment, @PathVariable String flagKey) {
     return RulesResponse.from(targeting.rules(environment, flagKey));
   }
@@ -95,6 +96,7 @@ public class TargetingController {
       responseCode = "409",
       description = "The flag is archived",
       content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+  @ApiResponse(responseCode = "200", description = "The rules as stored")
   RulesResponse replaceRules(
       EnvironmentScope environment,
       @PathVariable String flagKey,
@@ -106,6 +108,7 @@ public class TargetingController {
 
   @GetMapping("/overrides")
   @Operation(summary = "Get a flag's user overrides in an environment")
+  @ApiResponse(responseCode = "200", description = "The overrides")
   OverridesResponse overrides(EnvironmentScope environment, @PathVariable String flagKey) {
     return OverridesResponse.from(targeting.overrides(environment, flagKey));
   }
@@ -120,6 +123,7 @@ public class TargetingController {
       responseCode = "409",
       description = "The flag is archived",
       content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+  @ApiResponse(responseCode = "200", description = "The overrides as stored")
   OverridesResponse replaceOverrides(
       EnvironmentScope environment,
       @PathVariable String flagKey,

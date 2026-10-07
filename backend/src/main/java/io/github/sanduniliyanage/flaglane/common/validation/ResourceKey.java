@@ -15,6 +15,10 @@ import java.lang.annotation.Target;
  * (docs/DATABASE.md). It excludes {@code :}, which separates salt from user key in the bucket hash
  * (FR-EVL-002). Checked here as well so a bad key is a 400 naming the field, not a 500 from a
  * constraint.
+ *
+ * <p>springdoc does not look inside a composed constraint, so a field carrying this one also states
+ * {@code requiredMode = REQUIRED} and {@code pattern = REGEX} in its {@code @Schema}, or the
+ * document would call the key optional and unconstrained.
  */
 @NotNull
 @Pattern(regexp = ResourceKey.REGEX)

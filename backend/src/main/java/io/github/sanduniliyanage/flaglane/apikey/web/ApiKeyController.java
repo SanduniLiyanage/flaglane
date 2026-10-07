@@ -42,6 +42,7 @@ public class ApiKeyController {
 
   @GetMapping
   @Operation(summary = "List an environment's keys", description = "Prefix and metadata only.")
+  @ApiResponse(responseCode = "200", description = "The environment's keys, revoked ones included")
   List<ApiKeyResponse> list(EnvironmentScope environment) {
     return keys.list(environment).stream().map(ApiKeyResponse::from).toList();
   }

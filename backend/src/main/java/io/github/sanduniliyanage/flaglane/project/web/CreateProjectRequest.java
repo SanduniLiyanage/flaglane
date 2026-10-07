@@ -7,6 +7,11 @@ import jakarta.validation.constraints.Size;
 
 /** {@code POST /api/projects}. */
 public record CreateProjectRequest(
-    @Schema(example = "storefront", description = "Unique across Flaglane; immutable") @ResourceKey
+    @Schema(
+            example = "storefront",
+            description = "Unique across Flaglane; immutable",
+            requiredMode = Schema.RequiredMode.REQUIRED,
+            pattern = ResourceKey.REGEX)
+        @ResourceKey
         String key,
     @Schema(example = "Storefront") @NotBlank @Size(max = 100) String name) {}

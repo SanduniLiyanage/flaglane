@@ -44,6 +44,7 @@ public class EnvironmentController {
 
   @GetMapping
   @Operation(summary = "List a project's environments")
+  @ApiResponse(responseCode = "200", description = "The project's environments")
   List<EnvironmentResponse> list(ProjectScope project) {
     return environments.list(project).stream().map(EnvironmentResponse::from).toList();
   }

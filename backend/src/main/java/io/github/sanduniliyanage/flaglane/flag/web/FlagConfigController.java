@@ -39,6 +39,7 @@ public class FlagConfigController {
 
   @GetMapping
   @Operation(summary = "Get a flag's configuration in an environment")
+  @ApiResponse(responseCode = "200", description = "The configuration")
   FlagConfigResponse get(EnvironmentScope environment, @PathVariable String flagKey) {
     return FlagConfigResponse.from(configs.get(environment, flagKey));
   }
@@ -54,6 +55,7 @@ public class FlagConfigController {
       responseCode = "409",
       description = "The flag is archived",
       content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+  @ApiResponse(responseCode = "200", description = "The configuration as changed")
   FlagConfigResponse update(
       EnvironmentScope environment,
       @PathVariable String flagKey,

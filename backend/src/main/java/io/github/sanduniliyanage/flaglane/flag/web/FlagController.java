@@ -42,6 +42,7 @@ public class FlagController {
 
   @GetMapping
   @Operation(summary = "List a project's flags", description = "Archived flags included.")
+  @ApiResponse(responseCode = "200", description = "The project's flags")
   List<FlagResponse> list(ProjectScope project) {
     return flags.list(project).stream().map(FlagResponse::from).toList();
   }
@@ -70,6 +71,7 @@ public class FlagController {
 
   @GetMapping("/{flagKey}")
   @Operation(summary = "Get a flag")
+  @ApiResponse(responseCode = "200", description = "The flag")
   FlagResponse get(ProjectScope project, @PathVariable String flagKey) {
     return FlagResponse.from(flags.get(project, flagKey));
   }
@@ -82,6 +84,7 @@ public class FlagController {
       responseCode = "409",
       description = "The flag is archived",
       content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+  @ApiResponse(responseCode = "200", description = "The flag as edited")
   FlagResponse update(
       ProjectScope project,
       @PathVariable String flagKey,
@@ -99,6 +102,7 @@ public class FlagController {
       description =
           "Removes it from every ruleset. Never a deletion: its history stays, its key stays"
               + " reserved, and it can be restored (FR-FLG-005).")
+  @ApiResponse(responseCode = "200", description = "The flag, archived")
   FlagResponse archive(ProjectScope project, @PathVariable String flagKey) {
     return FlagResponse.from(flags.archive(project, flagKey));
   }
@@ -107,6 +111,7 @@ public class FlagController {
   @Operation(
       summary = "Restore an archived flag",
       description = "Same key, same configurations (FR-FLG-007).")
+  @ApiResponse(responseCode = "200", description = "The flag, restored")
   FlagResponse restore(ProjectScope project, @PathVariable String flagKey) {
     return FlagResponse.from(flags.restore(project, flagKey));
   }

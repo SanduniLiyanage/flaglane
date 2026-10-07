@@ -9,7 +9,9 @@ import jakarta.validation.constraints.Size;
 public record CreateFlagRequest(
     @Schema(
             example = "new-checkout",
-            description = "Unique in the project, archived flags included; can never change")
+            description = "Unique in the project, archived flags included; can never change",
+            requiredMode = Schema.RequiredMode.REQUIRED,
+            pattern = ResourceKey.REGEX)
         @ResourceKey
         String key,
     @Schema(example = "New checkout") @NotBlank @Size(max = 100) String name,

@@ -46,6 +46,10 @@ flaglane:
     auth-rate-limit:
       per-minute: ${FLAGLANE_AUTH_RATE_LIMIT_PER_MINUTE:10}
 
+springdoc:
+  # Every answer the API sends is JSON; without this, every response is documented as */*.
+  default-produces-media-type: application/json
+
 management:
   endpoints:
     web:
