@@ -25,6 +25,7 @@ import io.github.sanduniliyanage.flaglane.flag.domain.FlagConfiguration;
 import io.github.sanduniliyanage.flaglane.flag.service.FlagConfigService;
 import io.github.sanduniliyanage.flaglane.flag.service.FlagService;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,7 +36,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
-@ManagementApiSliceTest({FlagController.class, FlagConfigController.class})
+@ManagementApiSliceTest({
+  FlagController.class,
+  FlagConfigController.class,
+  EnvironmentConfigsController.class
+})
 class FlagControllersTest {
 
   private static final UUID USER = UUID.fromString("0f6b3b5e-7c2a-4f5e-9d61-2a4b8f0e1c3d");
@@ -106,6 +111,25 @@ class FlagControllersTest {
         .andExpect(jsonPath("$.rolloutPercentage").value(30))
         .andExpect(jsonPath("$.rolloutBasisPoints").doesNotExist())
         .andExpect(jsonPath("$.offValue").value(false));
+  }
+
+  @Test
+  void anEnvironmentsConfigurationsAreListedInOneResponse() throws Exception {
+    when(configs.list(production))
+        .thenReturn(
+            List.of(
+                new FlagConfiguration(
+                    "checkout", "production", true, false, false, 3_000, "checkout", NOW),
+                new FlagConfiguration(
+                    "search", "production", false, false, true, 0, "search", NOW)));
+
+    mvc.perform(get("/api/projects/storefront/environments/production/configs").with(signedIn()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].flagKey").value("checkout"))
+        .andExpect(jsonPath("$[0].rolloutPercentage").value(30))
+        .andExpect(jsonPath("$[1].flagKey").value("search"))
+        .andExpect(jsonPath("$[1].enabled").value(false))
+        .andExpect(jsonPath("$[1].fallthroughValue").value(true));
   }
 
   @Test

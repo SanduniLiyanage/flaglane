@@ -16,6 +16,7 @@ import io.github.sanduniliyanage.flaglane.project.service.RulesetVersions;
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +49,24 @@ public class FlagConfigService {
   @Transactional(readOnly = true)
   public FlagConfiguration get(EnvironmentScope environment, String flagKey) {
     return toConfiguration(find(environment, flagKey), flagKey, environment);
+  }
+
+  /** Every flag's configuration in the environment, archived flags included, by flag key. */
+  @Transactional(readOnly = true)
+  public List<FlagConfiguration> list(EnvironmentScope environment) {
+    return configs.findAll(environment).stream()
+        .map(
+            row ->
+                new FlagConfiguration(
+                    row.flagKey(),
+                    environment.environmentKey(),
+                    row.enabled(),
+                    row.offValue(),
+                    row.fallthroughValue(),
+                    row.rolloutBasisPoints(),
+                    row.rolloutSalt(),
+                    row.updatedAt()))
+        .toList();
   }
 
   /**

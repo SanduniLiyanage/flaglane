@@ -117,6 +117,35 @@ class FlagPersistenceTest {
   }
 
   @Test
+  void anEnvironmentsConfigurationsAreListedByFlagKeyAndNoOtherEnvironmentsAre() {
+    for (String key : new String[] {"search", "checkout"}) {
+      FlagEntity flag = flag(alpha, key);
+      for (EnvironmentScope environment : tenants.environments(alpha)) {
+        configs.saveAndFlush(
+            FlagConfigEntity.newDefault(flag.id(), key, environment.environmentId(), NOW));
+      }
+    }
+    FlagEntity elsewhere = flag(beta, "elsewhere");
+    configs.saveAndFlush(
+        FlagConfigEntity.newDefault(
+            elsewhere.id(),
+            "elsewhere",
+            tenants.environment(beta, "production").environmentId(),
+            NOW));
+
+    List<KeyedFlagConfig> listed = configs.findAll(alphaProduction);
+
+    assertThat(listed).extracting(KeyedFlagConfig::flagKey).containsExactly("checkout", "search");
+    assertThat(listed)
+        .extracting(KeyedFlagConfig::environmentId)
+        .containsOnly(alphaProduction.environmentId());
+    assertThat(listed.getFirst())
+        .returns(false, KeyedFlagConfig::enabled)
+        .returns(0, KeyedFlagConfig::rolloutBasisPoints)
+        .returns("checkout", KeyedFlagConfig::rolloutSalt);
+  }
+
+  @Test
   void theOffValueIsFalseAndCannotBeWrittenThroughTheEntity() {
     FlagEntity checkout = flag(alpha, "checkout");
     FlagConfigEntity config =

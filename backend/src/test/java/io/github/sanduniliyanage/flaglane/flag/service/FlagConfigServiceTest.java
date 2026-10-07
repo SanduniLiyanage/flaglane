@@ -23,10 +23,12 @@ import io.github.sanduniliyanage.flaglane.flag.persistence.FlagConfigEntity;
 import io.github.sanduniliyanage.flaglane.flag.persistence.FlagConfigRepository;
 import io.github.sanduniliyanage.flaglane.flag.persistence.FlagEntity;
 import io.github.sanduniliyanage.flaglane.flag.persistence.FlagRepository;
+import io.github.sanduniliyanage.flaglane.flag.persistence.KeyedFlagConfig;
 import io.github.sanduniliyanage.flaglane.project.service.RulesetVersions;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,6 +64,29 @@ class FlagConfigServiceTest {
             flag.id(), "checkout", production.environmentId(), NOW.minusSeconds(3600));
     when(flags.find(project, "checkout")).thenReturn(Optional.of(flag));
     when(configs.find(production, "checkout")).thenReturn(Optional.of(config));
+  }
+
+  @Test
+  void anEnvironmentsConfigurationsAreListedWithTheirFlagKeysAndBasisPoints() {
+    when(configs.findAll(production))
+        .thenReturn(
+            List.of(
+                new KeyedFlagConfig(
+                    "checkout",
+                    production.environmentId(),
+                    true,
+                    false,
+                    false,
+                    3_000,
+                    "checkout",
+                    NOW)));
+
+    List<FlagConfiguration> listed = service.list(production);
+
+    assertThat(listed)
+        .containsExactly(
+            new FlagConfiguration(
+                "checkout", "production", true, false, false, 3_000, "checkout", NOW));
   }
 
   @Test

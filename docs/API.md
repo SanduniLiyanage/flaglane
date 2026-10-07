@@ -147,6 +147,7 @@ left unchanged and an empty `description` clears it.
 ### Configuration and targeting
 | Method | Path | Purpose |
 | --- | --- | --- |
+| GET | `/api/projects/{projectKey}/environments/{envKey}/configs` | Every flag's configuration in the environment, archived flags included, by flag key; each in the shape below |
 | GET | `/api/projects/{projectKey}/flags/{flagKey}/config/{envKey}` | |
 | PATCH | `/api/projects/{projectKey}/flags/{flagKey}/config/{envKey}` | Kill switch, fallthrough value, rollout percentage, rollout salt. 409 while archived |
 | GET | `.../config/{envKey}/rules` | In priority order |

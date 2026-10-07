@@ -26,6 +26,19 @@ public interface FlagConfigRepository extends Repository<FlagConfigEntity, UUID>
   Optional<FlagConfigEntity> find(
       @Param("environment") EnvironmentScope environment, @Param("flagKey") String flagKey);
 
+  /**
+   * Every flag's configuration in the environment, archived flags included, by flag key: one query
+   * for a listing that would otherwise be one request per flag.
+   */
+  @Query(
+      "select new io.github.sanduniliyanage.flaglane.flag.persistence.KeyedFlagConfig(f.key,"
+          + " c.environmentId, c.enabled, c.offValue, c.fallthroughValue, c.rolloutBasisPoints,"
+          + " c.rolloutSalt, c.updatedAt)"
+          + " from FlagConfigEntity c, FlagEntity f where f.id = c.flagId"
+          + " and f.projectId = :#{#environment.projectId()}"
+          + " and c.environmentId = :#{#environment.environmentId()} order by f.key")
+  List<KeyedFlagConfig> findAll(@Param("environment") EnvironmentScope environment);
+
   /** The environments of the project that already hold a configuration for this flag. */
   @Query(
       "select c.environmentId from FlagConfigEntity c, FlagEntity f where f.id = c.flagId"
