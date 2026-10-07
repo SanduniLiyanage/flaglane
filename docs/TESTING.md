@@ -14,6 +14,7 @@ being true.
 | Controllers | `@WebMvcTest` | Status codes, validation, auth, serialization |
 | End to end | Testcontainers, full context | Sign in, create a flag, roll out, evaluate |
 | SDK | Vitest | Shared fixtures, offline behaviour, reconnection |
+| Dashboard | Vitest, `react-dom/server` | Behaviour in plain modules tested directly; components rendered to static markup in Node (ADR-032) |
 
 ## Required suites
 
@@ -153,8 +154,10 @@ are not evidence.
 5. SDK test failures or type errors
 6. A Docker image that does not build
 7. The demo shop missing a change for longer than the poll interval, or failing with the API stopped
+8. Dashboard test failures or type errors, or API types that differ from what the OpenAPI snapshot
+   generates
 
-All seven gates are live. Gate 4 is `jacocoTestCoverageVerification`, which `check` runs: it
+All eight gates are live. Gate 4 is `jacocoTestCoverageVerification`, which `check` runs: it
 fails below 90% line coverage in `evaluation/` and nowhere else, and it was confirmed to fail when
 raised above the actual figure. Gate 5 is the workflow's SDK job: `npm ci`, then `tsc` with no
 emit, then Vitest, then the build, on Node 24. Gate 7 is the workflow's demo job, milestone 4's exit
@@ -163,6 +166,9 @@ criteria as a check: it starts the Compose stack with credentials generated for 
 through the management API and fails if any takes more than the five-second poll interval plus one
 second to reach the shop, or if raising the rollout takes the feature from anyone. The second runs
 with the API stopped and fails unless the shop still applies the override, the rule and the rollout.
+Gate 8 is the workflow's dashboard job: `npm ci`, then the API types regenerated from
+`dashboard/openapi.json` and diffed against the committed ones, then `tsc`, Vitest and the build.
+The snapshot itself is held to the served document by `OpenApiSnapshotTest` in gate 3 (ADR-031).
 
 Tests need Docker for Testcontainers. The `ubuntu-latest` runner ships with Docker Engine
 running and the runner user in the `docker` group, so Testcontainers finds the daemon at its

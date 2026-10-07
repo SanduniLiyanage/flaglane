@@ -1,0 +1,401 @@
+:root {
+  --text: #1f2937;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --surface: #ffffff;
+  --page: #f6f7f9;
+  --accent: #2563eb;
+  --accent-text: #ffffff;
+  --danger: #b91c1c;
+  --on: #15803d;
+  --on-bg: #dcfce7;
+  --off: #4b5563;
+  --off-bg: #f3f4f6;
+  --info-bg: #eff6ff;
+  --info-line: #bfdbfe;
+  --warning-bg: #fffbeb;
+  --warning-line: #fde68a;
+  --error-bg: #fef2f2;
+  --error-line: #fecaca;
+  --radius: 6px;
+  color: var(--text);
+  background: var(--page);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #e5e7eb;
+    --muted: #9ca3af;
+    --line: #374151;
+    --surface: #1f2937;
+    --page: #111827;
+    --accent: #3b82f6;
+    --danger: #f87171;
+    --on: #4ade80;
+    --on-bg: #14532d;
+    --off: #d1d5db;
+    --off-bg: #374151;
+    --info-bg: #1e3a5f;
+    --info-line: #1d4ed8;
+    --warning-bg: #422006;
+    --warning-line: #a16207;
+    --error-bg: #450a0a;
+    --error-line: #b91c1c;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+h1 {
+  font-size: 1.5rem;
+  margin: 0 0 1rem;
+}
+
+h2 {
+  font-size: 1.1rem;
+  margin: 0 0 0.75rem;
+}
+
+a {
+  color: var(--accent);
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* Header */
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.crumbs a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.crumbs a:hover {
+  text-decoration: underline;
+}
+
+.brand {
+  font-weight: 700;
+}
+
+.environment {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-weight: 400;
+}
+
+.account {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.page {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.heading {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.heading h1 {
+  margin: 0;
+}
+
+.back {
+  margin: 0 0 1rem;
+}
+
+/* Sign-in */
+
+.sign-in {
+  max-width: 26rem;
+  margin: 4rem auto;
+  padding: 0 1rem;
+}
+
+.sign-in .brand {
+  font-size: 1.75rem;
+  text-align: center;
+}
+
+.session-note {
+  font-size: 0.9rem;
+}
+
+/* Cards and forms */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  margin: 1.5rem 0;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.9rem;
+  font-weight: 500;
+}
+
+label.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 400;
+}
+
+fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0 0 1.25rem;
+}
+
+legend {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.45rem 0.6rem;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  padding: 0;
+}
+
+input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.hint {
+  display: block;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 400;
+  margin: 0 0 0.5rem;
+}
+
+.field-error,
+.form-error {
+  color: var(--danger);
+  font-size: 0.9rem;
+  font-weight: 400;
+}
+
+.reason {
+  border-left: 3px solid var(--warning-line);
+  background: var(--warning-bg);
+  padding: 0.5rem 0.75rem;
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.45rem 0.9rem;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+button.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #ffffff;
+}
+
+button.link {
+  border: 0;
+  background: none;
+  color: var(--accent);
+  padding: 0;
+}
+
+button:disabled,
+fieldset:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Rollout */
+
+.rollout {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  max-width: 32rem;
+}
+
+.rollout input[type="range"] {
+  flex: 1;
+  padding: 0;
+  accent-color: var(--accent);
+}
+
+.rollout output {
+  min-width: 3.5rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+/* Kill switch */
+
+.kill-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  border-left: 4px solid var(--off);
+}
+
+.kill-switch.on {
+  border-left-color: var(--on);
+}
+
+.kill-switch-state h2 {
+  margin: 0;
+}
+
+.kill-switch .confirm p {
+  margin: 0 0 0.75rem;
+  max-width: 34rem;
+}
+
+/* Lists */
+
+table.list {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+table.list th,
+table.list td {
+  text-align: left;
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid var(--line);
+}
+
+table.list th {
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+table.list tr:last-child td {
+  border-bottom: 0;
+}
+
+tr.archived td {
+  color: var(--muted);
+}
+
+.badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.05rem 0.6rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  background: var(--off-bg);
+  color: var(--off);
+}
+
+.badge.on {
+  background: var(--on-bg);
+  color: var(--on);
+}
+
+/* Notices */
+
+.notice {
+  border: 1px solid var(--info-line);
+  background: var(--info-bg);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.9rem;
+  margin: 0 0 1rem;
+}
+
+.notice-warning {
+  border-color: var(--warning-line);
+  background: var(--warning-bg);
+}
+
+.notice-error {
+  border-color: var(--error-line);
+  background: var(--error-bg);
+}

@@ -51,6 +51,7 @@ Squash merge after CI is green. A red build is never merged.
 ./gradlew spotlessApply
 ./gradlew check
 npm --prefix sdk test
+npm --prefix dashboard test
 npm --prefix dashboard run build
 ```
 

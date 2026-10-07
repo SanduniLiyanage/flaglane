@@ -5,6 +5,8 @@
 # PostgreSQL through Testcontainers, which finds the runner's Docker daemon at its
 # default socket with no setup step. The SDK job type-checks, tests and builds sdk/;
 # its parity suite reads the same fixtures under backend/ that the server's does. The
+# dashboard job does the same for dashboard/, and fails if its API types are not the
+# ones generated from the OpenAPI snapshot. The
 # demo job runs milestone 4's exit criteria: the demo shop, against the Compose stack,
 # picks up a change within the poll interval and keeps serving with the API stopped.
 name: CI
@@ -74,6 +76,31 @@ jobs:
       # The benchmarks run against the build and are not run here, a shared runner being no place
       # to time anything; checking their types keeps them runnable (docs/BENCHMARKS.md).
       - run: npm run typecheck:bench
+
+  dashboard:
+    name: Dashboard types, tests and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - run: npm ci
+      # The committed types must be what the generator makes from the committed snapshot, which
+      # the backend's OpenApiSnapshotTest keeps equal to the document the API serves (ADR-031).
+      - name: API types match the OpenAPI snapshot
+        run: npm run api:types && git diff --exit-code -- src/api/schema.ts
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
 
   image:
     name: Build image

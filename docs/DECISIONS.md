@@ -717,3 +717,27 @@ the form — a second step during an incident; `openapi-typescript` — it requi
 API, which TypeScript 7 does not provide, and our document needs a fraction of what it handles;
 hash-based routes — they would avoid the server-side forwarding, at the price of URLs that read as a
 workaround.
+
+---
+
+## ADR-032 — The dashboard's dependencies: React and Vite, and nothing in between
+
+CLAUDE.md names React 18, TypeScript and Vite for the dashboard and asks before any other
+dependency. A dashboard usually arrives with a router, a data-fetching library, a component kit and
+a DOM testing stack, each of which would be one more thing to keep current for five pages.
+**Decision:** the dashboard's runtime dependencies are `react` and `react-dom` 18 and nothing else.
+It is built by Vite 8 with `@vitejs/plugin-react`, whose Fast Refresh keeps a page's state through
+an edit (a full reload would sign the developer out, ADR-031), type-checked by TypeScript 7 and
+tested by Vitest 5, the versions the SDK uses. Routing is some 150 lines over the History API,
+data loading a small hook, styling one stylesheet, and the API client the generated types of
+ADR-031. Components are tested by rendering them to static markup with `react-dom/server` in Node,
+and the rest of the behaviour lives in plain modules that are tested directly. **Consequences:** the
+installed tree is 49 packages and the built page is about 53 KB of compressed script. The router
+does what five routes need and no more: no nested layouts, no loaders, no lazy routes. Interaction in
+a component is not unit-tested, so what happens on a click is kept in modules that are; the end-to-end
+behaviour is checked against a running stack. **Rejected:** React Router — a dependency, with a major
+version every year or two, for path matching and a history listener; TanStack Query — caching and
+retries the dashboard should not have, since a page that shows a flag must show what is saved now;
+Testing Library with jsdom — two dependencies and a simulated DOM, for the few tests that need more
+than static markup; a component library — a design system to theme and upgrade, for forms and a
+table; React 19 — the stack names 18, and nothing here needs what 19 adds.
