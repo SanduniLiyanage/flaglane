@@ -4,9 +4,11 @@
 //
 //   npm run bench:serving          against FLAGLANE_URL, default http://localhost:8080
 //
-// Three measurements on the shared workload's 1,000-flag environment: full answers one at a time,
-// 304s one at a time (what a polling SDK gets while nothing changes), and full answers from 16
-// clients at once. RULESET=varied builds the same shape with random keys and values, which
+// Four measurements on the shared workload's 1,000-flag environment: full answers one at a time,
+// 304s one at a time (what a polling SDK gets while nothing changes), then full answers and 304s
+// from 16 clients at once, the 304s showing what the concurrency costs without any body. Run it from
+// a container on the stack's network, FLAGLANE_URL=http://api:8080, to leave out the host's port
+// forwarding. RULESET=varied builds the same shape with random keys and values, which
 // compresses about as badly as a ruleset can (stack.ts). Method and results: docs/BENCHMARKS.md.
 
 import os from "node:os";
@@ -43,6 +45,11 @@ reportMillis("200, one client", await sequence({}));
 reportMillis("304, one client", await sequence({ "if-none-match": etag }));
 const all = await Promise.all(Array.from({ length: CONCURRENT_CLIENTS }, () => sequence({}, PER_CLIENT)));
 reportMillis(`200, ${CONCURRENT_CLIENTS} clients at once`, all.flat());
+// The same concurrency with no body: what any request on this path costs, ruleset or not.
+const empty = await Promise.all(
+  Array.from({ length: CONCURRENT_CLIENTS }, () => sequence({ "if-none-match": etag }, PER_CLIENT)),
+);
+reportMillis(`304, ${CONCURRENT_CLIENTS} clients at once`, empty.flat());
 
 async function sequence(headers: Record<string, string>, count = SEQUENTIAL): Promise<number[]> {
   const samples: number[] = [];
