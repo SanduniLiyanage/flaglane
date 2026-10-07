@@ -19,8 +19,24 @@ cd flaglane
 docker compose up
 ```
 
-The API is on `http://localhost:8080`, Swagger UI on `http://localhost:8080/swagger-ui.html`, and
-the dashboard on `http://localhost:5173`.
+The API and the built dashboard are on `http://localhost:8080`, and Swagger UI on
+`http://localhost:8080/swagger-ui.html`. To work on the dashboard, run its dev server beside the
+stack:
+
+```bash
+npm --prefix dashboard ci
+npm --prefix dashboard run dev     # http://localhost:5173, proxying /api to the API on 8080
+```
+
+The dev server proxies rather than calling the API cross-origin, because the API admits no
+cross-origin request on `/api/**` (ADR-031). A full page reload signs you out of the dashboard; Fast
+Refresh keeps your session through most edits. After changing an endpoint, regenerate the
+dashboard's types:
+
+```bash
+./gradlew :backend:test --tests '*OpenApiSnapshotTest' -PupdateOpenApiSnapshot
+npm --prefix dashboard run api:types
+```
 
 ## Before opening a pull request
 
@@ -28,6 +44,7 @@ the dashboard on `http://localhost:5173`.
 ./gradlew spotlessApply
 ./gradlew check
 npm --prefix sdk test
+npm --prefix dashboard test
 npm --prefix dashboard run build
 ```
 

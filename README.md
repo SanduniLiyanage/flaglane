@@ -82,8 +82,11 @@ cp .env.example .env    # then set the three passwords and the JWT secret in it
 docker compose up --build
 ```
 
-The API is on `http://localhost:8080`, Swagger UI on `http://localhost:8080/swagger-ui.html`, and
-`http://localhost:8080/actuator/health` reports its status. The OpenAPI document behind the UI is
+The dashboard is on `http://localhost:8080`, served by the API from its own origin; create an
+account there and sign in. Your session lives in that tab only: a reload or a new tab asks for the
+password again, because the token is kept nowhere a script or another tab could read it (ADR-031).
+Swagger UI is on `http://localhost:8080/swagger-ui.html`, and
+`http://localhost:8080/actuator/health` reports the API's status. The OpenAPI document behind the UI is
 at `/v3/api-docs` and is generated from the source, so it cannot drift from the endpoints.
 Nothing else is installed on the host. The stack runs PostgreSQL with two database roles — one
 that owns the schema and runs migrations, one the application runs as with no DDL privileges —

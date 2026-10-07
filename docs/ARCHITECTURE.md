@@ -227,7 +227,9 @@ The last two are the product's central promise. Everything else in this document
 
 ## 8. Deployment
 
-`docker compose up` runs API, PostgreSQL and dashboard. The published image takes all
+`docker compose up` runs API, PostgreSQL and dashboard. The dashboard is not a third service: the
+image builds it and the API serves it from its own origin, so the dashboard never makes a
+cross-origin request and `/api/**` admits none (ADR-031). The published image takes all
 configuration from environment variables and runs Flyway on startup.
 
 Two database roles, not one: `flaglane_migrator` owns the schema and runs Flyway at startup,

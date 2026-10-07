@@ -17,8 +17,8 @@ import org.springframework.security.web.SecurityFilterChain;
  *
  * <p>{@code /api/**} is the dashboard's, authenticated by a JWT bearer token, with registration and
  * sign-in the only open endpoints. {@code /sdk/**} gets its own chain, authenticated by API key, in
- * slice 1.8. Everything else is closed except health probes, the API documentation and Spring's
- * error page.
+ * slice 1.8. Everything else is closed except health probes, the API documentation, Spring's error
+ * page and the dashboard's page, assets and routes.
  *
  * <p>All chains are stateless and have no CSRF protection: credentials travel in an {@code
  * Authorization} header that a browser never attaches on its own, so there is no ambient credential
@@ -60,6 +60,19 @@ public class SecurityConfiguration {
                         // Where the container forwards an error, a 404 from /api/** included.
                         // Closing it would turn every such status into a 403.
                         "/error")
+                    .permitAll()
+                    // The dashboard, served from this origin so that it never needs CORS
+                    // (ADR-031): its page, its built assets, and the routes DashboardRoutes
+                    // answers with the page. Read-only; anything else is still denied.
+                    .requestMatchers(
+                        HttpMethod.GET,
+                        "/",
+                        "/index.html",
+                        "/favicon.svg",
+                        "/assets/**",
+                        "/sign-in",
+                        "/projects",
+                        "/projects/**")
                     .permitAll()
                     .anyRequest()
                     .denyAll());

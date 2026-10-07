@@ -1,5 +1,13 @@
-# Builds the API from source with the same wrapper and JDK the build uses everywhere else.
+# Builds the API from source with the same wrapper and JDK the build uses everywhere else, and the
+# dashboard, which the API serves from its own origin (ADR-031).
 # Build context is the repository root: docker build -f backend/Dockerfile .
+
+FROM node:24-slim AS dashboard
+WORKDIR /dashboard
+COPY dashboard/package.json dashboard/package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
+COPY dashboard/ ./
+RUN npm run build
 
 FROM eclipse-temurin:25-jdk AS build
 WORKDIR /workspace
@@ -23,6 +31,10 @@ COPY --from=build /workspace/extracted/dependencies/ ./
 COPY --from=build /workspace/extracted/spring-boot-loader/ ./
 COPY --from=build /workspace/extracted/snapshot-dependencies/ ./
 COPY --from=build /workspace/extracted/application/ ./
+COPY --from=dashboard /dashboard/dist/ ./dashboard/
+# The built dashboard is the API's static content: the page, its assets, and, through
+# DashboardRoutes, every route the page answers in the browser.
+ENV SPRING_WEB_RESOURCES_STATICLOCATIONS=file:/app/dashboard/
 USER flaglane
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "application.jar"]
