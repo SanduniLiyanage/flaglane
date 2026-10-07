@@ -36,23 +36,30 @@ export interface BenchmarkEnvironment {
   readonly sdkKey: string;
 }
 
-/** Builds the shared workload in a new project and returns a server key for its production. */
-export async function benchmarkEnvironment(): Promise<BenchmarkEnvironment> {
+/**
+ * Builds the shared workload in a new project and returns a server key for its production.
+ *
+ * `varied` keeps the workload's shape, flag for flag and rule for rule, but gives every flag a
+ * random key and every match value random content of the same length. The generated workload repeats
+ * itself and compresses about sixty to one, far better than a real ruleset would; the varied one is
+ * the opposite bound, with nothing for a compressor to find but the JSON around the values.
+ */
+export async function benchmarkEnvironment({ varied = false } = {}): Promise<BenchmarkEnvironment> {
   const api = await Api.signUp();
   const project = `bench-${randomBytes(4).toString("hex")}`;
   await api.call("POST", "/api/projects", { key: project, name: "Benchmark" });
   const started = performance.now();
   for (let f = 0; f < FLAGS; f++) {
-    const key = flagKey(f);
+    const key = varied ? `${randomBytes(6).toString("hex")}-${randomBytes(4).toString("hex")}` : flagKey(f);
     await api.call("POST", `/api/projects/${project}/flags`, { key, name: key });
     await api.call("PATCH", `/api/projects/${project}/flags/${key}/config/${ENVIRONMENT}`, {
       enabled: true,
       fallthroughValue: false,
       rolloutPercentage: 30,
     });
-    const rules = Array.from({ length: ruleCount(key, RULES) }, (_, r) => {
+    const rules = Array.from({ length: ruleCount(varied ? flagKey(f) : key, RULES) }, (_, r) => {
       const { priority: _priority, ...rule } = nonMatchingRule(r);
-      return rule;
+      return varied ? { ...rule, matchValues: rule.matchValues.map(randomLike) } : rule;
     });
     await api.call("PUT", `/api/projects/${project}/flags/${key}/config/${ENVIRONMENT}/rules`, { rules });
   }
@@ -62,6 +69,17 @@ export async function benchmarkEnvironment(): Promise<BenchmarkEnvironment> {
   })) as { key: string };
   console.log(`Built ${FLAGS} flags in ${project} in ${((performance.now() - started) / 1000).toFixed(0)} s`);
   return { api, project, sdkKey: issued.key };
+}
+
+/** A value of the same type, and for a string the same length, with random content. */
+function randomLike(value: unknown): unknown {
+  if (typeof value === "string") {
+    return randomBytes(value.length).toString("base64url").slice(0, value.length);
+  }
+  if (typeof value === "number") {
+    return randomBytes(4).readUInt32BE();
+  }
+  return value;
 }
 
 /** The ruleset version a key's environment is serving now. */
