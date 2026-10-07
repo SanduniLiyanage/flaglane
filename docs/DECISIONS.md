@@ -771,3 +771,35 @@ Brotli — smaller, but not in the JDK, so a dependency with native code; compre
 more than it saves; a different ETag per coding — it would make an SDK that once received the
 plain body and then the gzipped one download an unchanged ruleset again, for a distinction nothing
 in the path stores.
+
+---
+
+## ADR-034 — The dashboard checks what the API checks, and shows records as recorded
+
+Slices 3.6 to 3.8 put the rest of the management API in front of a person: rules, overrides, keys
+and the audit trail. Each had a choice between being convenient and being exact. **Decision:** the
+rule editor stages the whole ordered list and saves it in one `PUT`, as FR-RUL-004 replaces it, and
+makes every check the API makes on write as the rule is edited — `RuleValidator`'s definition of an
+applicable rule (ADR-019) and the limits of ADR-023 — so a problem shows beside the field, not after
+Save. It is held to that by suite 4a's own fixture: for every row the form can express, the form
+accepts exactly what the server accepts. A rule holds one value type, which is all the API accepts
+for a list; a list is one value per line. Two things the API accepts are warned about rather than
+refused: a rule on `key`, which the SDK reads as the user key and so never matches (ADR-026), and an
+empty text value, which is compared as the empty string. Rules move with buttons, not by dragging.
+Overrides are edited as the set they are, one entry per user key. An issued key is shown in the one
+response that carries it, with a copy control, and leaving the page while it is shown asks first;
+nothing offers to show it again. Revoking says what it does to an application already running with
+the key, which keeps its last ruleset and gets no more changes, and to one started later, which gets
+its code's defaults. The audit trail shows recorded states as recorded (ADR-030): field names as
+stored, a rollout in basis points with the unit named, and the percentage beside it only when it is
+a whole one, by integer arithmetic; the full record is one click away. **Consequences:** the form
+cannot write a rule the API would refuse, and the shared fixture fails the dashboard's tests if the
+two drift. A list value containing a line break, or an empty string inside a list, can be written
+through the API but not through the form. A reader of the audit trail meets basis points, labelled,
+where the rest of the dashboard says percent. **Rejected:** validating on save only — the person
+learns after pressing Save what the form could have said before, which FR-UI-007's staged edits
+exist to avoid; drag-and-drop reordering — a dependency, and not usable from a keyboard without
+more of one; converting recorded basis points to percentages — a record rewritten on the way out is
+not the record, and a rollout that is not a whole percentage would need a fraction the dashboard
+never shows; a "reveal key" control — there is nothing to reveal, and a button suggesting otherwise
+would be the interface pretending.

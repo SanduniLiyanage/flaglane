@@ -37,6 +37,10 @@ export function FlagDetailPage({ project, environment, flag }: Props) {
     <Layout project={{ key: project, environment }} tab="flags">
       <p className="back">
         <Link to={path("projects", project, environment, "flags")}>← Flags in {environment}</Link>
+        {" · "}
+        <Link to={`${path("projects", project, "audit")}?${new URLSearchParams({ environment, flag }).toString()}`}>
+          This flag's changes in {environment}
+        </Link>
       </p>
       {loaded.state === "loading" && <p className="muted">Loading…</p>}
       {loaded.state === "failed" && (

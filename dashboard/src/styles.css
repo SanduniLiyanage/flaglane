@@ -512,3 +512,75 @@ table.keys .confirm p {
   font-size: 0.9rem;
 }
 
+/* Audit */
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+ol.audit {
+  list-style: none;
+  padding: 0;
+}
+
+.audit-entry {
+  margin: 0 0 0.75rem;
+  padding: 0.9rem 1.1rem;
+}
+
+.audit-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.audit-head time {
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.audit-scope {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  margin-left: auto;
+}
+
+table.changes {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.6rem 0;
+  font-size: 0.9rem;
+}
+
+table.changes th,
+table.changes td {
+  text-align: left;
+  padding: 0.3rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+table.changes th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.audit-entry details summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.audit-entry pre {
+  overflow-x: auto;
+  font-size: 0.82rem;
+  background: var(--page);
+  padding: 0.6rem;
+  border-radius: var(--radius);
+}

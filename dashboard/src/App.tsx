@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Layout } from "./components/Layout";
+import { AuditPage } from "./pages/AuditPage";
 import { FlagDetailPage } from "./pages/FlagDetailPage";
 import { FlagListPage } from "./pages/FlagListPage";
 import { KeysPage } from "./pages/KeysPage";
@@ -57,6 +58,9 @@ function Route({ location }: { location: string }) {
   }
   if ((params = match("/projects/:project", location)) !== null) {
     return <ProjectHome project={params.project as string} />;
+  }
+  if ((params = match("/projects/:project/audit", location)) !== null) {
+    return <AuditPage project={params.project as string} />;
   }
   if ((params = match("/projects/:project/:environment/keys", location)) !== null) {
     return <KeysPage project={params.project as string} environment={params.environment as string} />;
