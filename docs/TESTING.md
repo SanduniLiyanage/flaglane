@@ -62,7 +62,9 @@ differing only in capitalisation, `1` against `"1"`, and a `NOT_EQUALS` against 
 attribute. Run identically in Java and TypeScript from the shared fixtures. Substantiates: the two
 implementations agree where the two languages would naturally disagree. The rows are in
 `backend/src/test/resources/fixtures/comparison-semantics.json`; `ComparisonSemanticsTest` runs
-them rule by rule and through the whole engine.
+them rule by rule and through the whole engine. The dashboard's rule editor is held to the same rows
+in `dashboard/test/rules.test.ts`: for every row the form can express, it accepts exactly what
+`RuleValidator` accepts on write (ADR-034).
 
 ### 5. Tenant isolation — NFR-SEC-004
 For every tenant-scoped endpoint, authenticate as project A and attempt to read and mutate

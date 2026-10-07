@@ -32,7 +32,7 @@ export function ConfigForm({ staged, dirty, saving, busy, readOnly, onChange, on
 
   return (
     <form className="card config" onSubmit={submit}>
-      <h2>Targeting</h2>
+      <h2>Rollout and fallthrough</h2>
       <fieldset disabled={locked}>
         <legend>Fallthrough value</legend>
         <p className="hint">What a user gets when the flag is on and no override, rule or rollout gave them anything.</p>

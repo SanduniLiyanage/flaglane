@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api/client";
-import type { FlagConfigResponse, FlagResponse } from "../api/schema";
+import type { FlagConfigResponse, FlagResponse, OverrideRequest, RuleRequest } from "../api/schema";
 import { useLoad } from "../api/useLoad";
 import { Layout } from "../components/Layout";
 import { Notice } from "../components/Notice";
 import { ConfigForm } from "../flags/ConfigForm";
 import { KillSwitch } from "../flags/KillSwitch";
+import { draftsFrom, overridesChanged, toRequests, type OverrideDraft } from "../flags/overrides";
+import { OverridesEditor } from "../flags/OverridesEditor";
+import { draftFrom, ruleIndexOf, rulesChanged, toRequest, type RuleDraft } from "../flags/rules";
+import { RulesEditor } from "../flags/RulesEditor";
 import { changes, isDirty, stagedFrom, type Staged } from "../flags/staging";
 import { Link, path, useLeaveGuard } from "../router";
 
@@ -19,16 +23,15 @@ const LEAVE = "This flag has unsaved changes. Leave without saving them?";
 
 /** FR-UI-004 and FR-UI-007: one flag in one environment. */
 export function FlagDetailPage({ project, environment, flag }: Props) {
-  const loaded = useLoad(`${project}/${environment}/${flag}`, () =>
-    Promise.all([
+  const loaded = useLoad(`${project}/${environment}/${flag}`, () => {
+    const config = { projectKey: project, flagKey: flag, envKey: environment };
+    return Promise.all([
       api("GET /api/projects/{projectKey}/flags/{flagKey}", { projectKey: project, flagKey: flag }),
-      api("GET /api/projects/{projectKey}/flags/{flagKey}/config/{envKey}", {
-        projectKey: project,
-        flagKey: flag,
-        envKey: environment,
-      }),
-    ]),
-  );
+      api("GET /api/projects/{projectKey}/flags/{flagKey}/config/{envKey}", config),
+      api("GET /api/projects/{projectKey}/flags/{flagKey}/config/{envKey}/rules", config),
+      api("GET /api/projects/{projectKey}/flags/{flagKey}/config/{envKey}/overrides", config),
+    ]);
+  });
 
   return (
     <Layout project={{ key: project, environment }}>
@@ -50,6 +53,8 @@ export function FlagDetailPage({ project, environment, flag }: Props) {
           environment={environment}
           definition={loaded.data[0]}
           initial={loaded.data[1]}
+          initialRules={loaded.data[2].rules}
+          initialOverrides={loaded.data[3].overrides}
         />
       )}
     </Layout>
@@ -61,16 +66,27 @@ interface EditorProps {
   readonly environment: string;
   readonly definition: FlagResponse;
   readonly initial: FlagConfigResponse;
+  readonly initialRules: readonly RuleRequest[];
+  readonly initialOverrides: readonly OverrideRequest[];
 }
 
-function Editor({ project, environment, definition, initial }: EditorProps) {
+type Saving = "form" | "switch" | "rules" | "overrides" | null;
+
+function Editor({ project, environment, definition, initial, initialRules, initialOverrides }: EditorProps) {
   const [saved, setSaved] = useState(initial);
   const [staged, setStaged] = useState<Staged>(() => stagedFrom(initial));
-  const [saving, setSaving] = useState<"form" | "switch" | null>(null);
+  const [savedRules, setSavedRules] = useState(initialRules);
+  const [rules, setRules] = useState<RuleDraft[]>(() => initialRules.map(draftFrom));
+  const [refused, setRefused] = useState<ReadonlyMap<number, string>>(new Map());
+  const [savedOverrides, setSavedOverrides] = useState(initialOverrides);
+  const [overrides, setOverrides] = useState<OverrideDraft[]>(() => draftsFrom(initialOverrides));
+  const [saving, setSaving] = useState<Saving>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const dirty = isDirty(saved, staged);
-  useLeaveGuard(dirty ? LEAVE : null);
+  const rulesDirty = rulesChanged(savedRules, rules);
+  const overridesDirty = overridesChanged(savedOverrides, overrides);
+  useLeaveGuard(dirty || rulesDirty || overridesDirty ? LEAVE : null);
 
   useEffect(() => {
     if (notice === null) {
@@ -92,6 +108,51 @@ function Editor({ project, environment, definition, initial }: EditorProps) {
       setSaved(updated);
       setStaged(stagedFrom(updated));
       setNotice(`Saved. SDKs polling ${environment} pick it up within about five seconds.`);
+    } catch (caught) {
+      setError(failure(caught));
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const saveRules = async () => {
+    setSaving("rules");
+    setError(null);
+    setRefused(new Map());
+    try {
+      const stored = await api("PUT /api/projects/{projectKey}/flags/{flagKey}/config/{envKey}/rules", params, {
+        rules: rules.map(toRequest),
+      });
+      setSavedRules(stored.rules);
+      setRules(stored.rules.map(draftFrom));
+      setNotice(`Rules saved. SDKs polling ${environment} pick them up within about five seconds.`);
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.status === 400) {
+        const byRule = new Map<number, string>();
+        caught.fields.forEach((message, field) => {
+          const index = ruleIndexOf(field);
+          if (index !== null) {
+            byRule.set(index, message);
+          }
+        });
+        setRefused(byRule);
+      }
+      setError(failure(caught));
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const saveOverrides = async () => {
+    setSaving("overrides");
+    setError(null);
+    try {
+      const stored = await api("PUT /api/projects/{projectKey}/flags/{flagKey}/config/{envKey}/overrides", params, {
+        overrides: toRequests(overrides),
+      });
+      setSavedOverrides(stored.overrides);
+      setOverrides(draftsFrom(stored.overrides));
+      setNotice(`Overrides saved. SDKs polling ${environment} with a server key pick them up within about five seconds.`);
     } catch (caught) {
       setError(failure(caught));
     } finally {
@@ -133,9 +194,38 @@ function Editor({ project, environment, definition, initial }: EditorProps) {
         readOnly={readOnly}
         onSet={setEnabled}
       />
-      {!saved.enabled && (
-        <p className="muted">While the flag is off, these settings are kept and take effect when it is turned on.</p>
-      )}
+      <p className="muted">
+        {saved.enabled ? "" : "While the flag is off, everything below is kept and takes effect when it is turned on. "}
+        A user gets the value of the first of these that applies: a user override, the first rule that
+        matches, the rollout, then the fallthrough value.
+      </p>
+      <OverridesEditor
+        drafts={overrides}
+        dirty={overridesDirty}
+        saving={saving === "overrides"}
+        busy={saving !== null}
+        readOnly={readOnly}
+        onChange={setOverrides}
+        onSave={saveOverrides}
+        onDiscard={() => setOverrides(draftsFrom(savedOverrides))}
+      />
+      <RulesEditor
+        drafts={rules}
+        dirty={rulesDirty}
+        saving={saving === "rules"}
+        busy={saving !== null}
+        readOnly={readOnly}
+        refused={refused}
+        onChange={(next) => {
+          setRules(next);
+          setRefused(new Map());
+        }}
+        onSave={saveRules}
+        onDiscard={() => {
+          setRules(savedRules.map(draftFrom));
+          setRefused(new Map());
+        }}
+      />
       <ConfigForm
         staged={staged}
         dirty={dirty}

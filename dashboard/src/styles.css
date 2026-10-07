@@ -399,3 +399,62 @@ tr.archived td {
   border-color: var(--error-line);
   background: var(--error-bg);
 }
+
+/* Rules and overrides */
+
+.rule-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+}
+
+.rule {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  margin: 0 0 0.75rem;
+}
+
+.rule legend {
+  padding: 0 0.25rem;
+}
+
+.rule-fields {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) minmax(8rem, 1fr) minmax(7rem, 0.8fr) minmax(10rem, 1.6fr) minmax(6rem, 0.7fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.rule-fields label {
+  margin-bottom: 0.5rem;
+}
+
+.rule .field-error,
+.rule .reason {
+  margin: 0 0 0.5rem;
+}
+
+.overrides-table input {
+  width: 100%;
+}
+
+.overrides-table td {
+  vertical-align: top;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (max-width: 52rem) {
+  .rule-fields {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
