@@ -741,3 +741,33 @@ retries the dashboard should not have, since a page that shows a flag must show 
 Testing Library with jsdom — two dependencies and a simulated DOM, for the few tests that need more
 than static markup; a component library — a design system to theme and upgrade, for forms and a
 table; React 19 — the stack names 18, and nothing here needs what 19 adds.
+
+---
+
+## ADR-033 — The ruleset is gzipped once, when it is built
+
+Sixteen clients downloading a 1,000-flag environment's 506 KiB ruleset at once took p99 79–94 ms,
+above NFR-PER-002's 50 ms, and every SDK downloads the whole ruleset whenever it changes.
+**Decision:** each snapshot holds the ruleset body for each key type twice, as UTF-8 bytes and
+gzipped, both made when the snapshot is built. `GET /sdk/config` sends the gzipped bytes with
+`Content-Encoding: gzip` to a request whose `Accept-Encoding` accepts gzip with a quality above
+zero, named or through `*`, and the plain bytes otherwise, including when the header is missing. It
+adds `Accept-Encoding` to `Vary`. The ETag is the same for both codings, and a `304` is the same
+whatever the request accepts. `POST /sdk/evaluate` is not compressed. **Consequences:** a request
+compresses nothing and encodes nothing; it writes bytes that already exist. A rebuild pays to
+compress, once per key type: about 19 ms for 744 KiB of random-valued JSON on the measuring laptop,
+on a write path that runs at human rate, since the minute's reconciliation rebuilds only environments
+whose version changed. A snapshot holds the compressed bytes as well, a fraction of the plain ones.
+The SDK changes nothing: browsers and Node's `fetch` ask for gzip and decode it. The two codings
+share a strong ETag, which strictly HTTP reserves for one representation; the ETag here names the
+ruleset version and key type, which is what a poll asks about, and every `/sdk/**` answer is
+`no-store`, so no cache keeps one coding to mistake for the other. Clients that do not ask, such as
+`curl` without `--compressed`, get the plain JSON. **Rejected:** Tomcat's `server.compression` —
+it compresses every response on every request, so sixteen clients would cost sixteen compressions of
+the same bytes, and it applies to `/api/**` as well, including the one response that carries a
+plaintext API key, where compression next to request-controlled content is the BREACH pattern;
+Brotli — smaller, but not in the JDK, so a dependency with native code; compressing
+`POST /sdk/evaluate` — at most 100 results, a few kilobytes, where compressing per request costs
+more than it saves; a different ETag per coding — it would make an SDK that once received the
+plain body and then the gzipped one download an unchanged ruleset again, for a distinction nothing
+in the path stores.

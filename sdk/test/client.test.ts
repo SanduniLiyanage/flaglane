@@ -63,6 +63,29 @@ describe("the client", () => {
     expect(client.evaluate("kill-switch", { key: "user-1" })).toEqual({ value: true, reason: "OVERRIDE" });
   });
 
+  it("reads a gzipped ruleset, and revalidates it with the same ETag", async () => {
+    let current: { version: number; flags: unknown[] } = production;
+    const server = await startServer(servingRuleset(() => current, "server", true));
+    servers.push(server);
+    const client = await FlaglaneClient.init({
+      sdkKey: "flg_srv_test-key",
+      baseUrl: server.url,
+      pollIntervalMs: 20,
+      logger: quiet,
+    });
+    clients.push(client);
+
+    expect(client.ready).toBe(true);
+    expect(server.requests[0]?.headers["accept-encoding"]).toMatch(/\bgzip\b/);
+    await waitFor(() => server.requests.length >= 2);
+    expect(server.requests[1]?.headers["if-none-match"]).toBe('"7-server"');
+    expect(client.version).toBe(7);
+
+    current = { ...production, version: 8 };
+    await waitFor(() => client.version === 8);
+    expect(client.evaluate("kill-switch", { key: "user-1" }).reason).toBe("OFF");
+  });
+
   it("takes the user key and attributes from one flat context", async () => {
     const { client } = await setUp(() => production);
 

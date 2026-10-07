@@ -1189,12 +1189,20 @@
       "get" : {
         "tags" : [ "Serving" ],
         "summary" : "Download the ruleset",
-        "description" : "Every flag the key may read, for in-process evaluation (FR-SRV-001). A client key gets client-side-visible flags only, with no overrides (FR-KEY-005, FR-KEY-008). The ETag is the ruleset version and the key type; send it as `If-None-Match` for a 304 while nothing has changed.",
+        "description" : "Every flag the key may read, for in-process evaluation (FR-SRV-001). A client key gets client-side-visible flags only, with no overrides (FR-KEY-005, FR-KEY-008). The ETag is the ruleset version and the key type; send it as `If-None-Match` for a 304 while nothing has changed. Sent gzipped to a client that accepts gzip, with the same ETag either way.",
         "operationId" : "config",
         "parameters" : [ {
           "name" : "If-None-Match",
           "in" : "header",
           "description" : "An ETag from an earlier response",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "Accept-Encoding",
+          "in" : "header",
+          "description" : "`gzip` to receive the ruleset compressed",
           "required" : false,
           "schema" : {
             "type" : "string"

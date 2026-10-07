@@ -137,7 +137,7 @@ and the two serving endpoints live in the `serving` package (ADR-024).
 - On startup, before the application accepts requests, and after any write commits, the service
   rebuilds an immutable snapshot of the affected environment and swaps the reference atomically.
   A snapshot holds, for each key type, the engine's `Ruleset` and the JSON body `GET /sdk/config`
-  sends. The client one carries client-side-visible flags only and no overrides field at all, and
+  sends, as UTF-8 bytes and gzipped, so that no request encodes or compresses anything (ADR-033). The client one carries client-side-visible flags only and no overrides field at all, and
   `POST /sdk/evaluate` evaluates a client key against that same filtered ruleset.
 - A snapshot is built from four queries in one `REPEATABLE READ` transaction, so its version is
   the version of exactly the rows it was built from. Two rebuilds racing for one environment cannot

@@ -7,6 +7,7 @@ import io.github.sanduniliyanage.flaglane.evaluation.FlagConfig;
 import io.github.sanduniliyanage.flaglane.evaluation.Ruleset;
 import io.github.sanduniliyanage.flaglane.evaluation.TargetingRule;
 import io.github.sanduniliyanage.flaglane.serving.domain.RulesetSnapshot;
+import io.github.sanduniliyanage.flaglane.serving.domain.ServedBody;
 import io.github.sanduniliyanage.flaglane.serving.domain.ServedRuleset;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -156,9 +157,9 @@ public class RulesetLoader {
             environmentKey,
             version,
             Ruleset.of(environmentKey, version, serverFlags),
-            write(new ServedRuleset(environmentKey, version, serverServed)),
+            ServedBody.of(write(new ServedRuleset(environmentKey, version, serverServed))),
             Ruleset.of(environmentKey, version, clientFlags),
-            write(new ServedRuleset(environmentKey, version, clientServed))));
+            ServedBody.of(write(new ServedRuleset(environmentKey, version, clientServed)))));
   }
 
   private static FlagConfig flagConfig(

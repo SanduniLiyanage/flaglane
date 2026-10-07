@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 import io.github.sanduniliyanage.flaglane.evaluation.Ruleset;
 import io.github.sanduniliyanage.flaglane.project.domain.RulesetChanged;
 import io.github.sanduniliyanage.flaglane.serving.domain.RulesetSnapshot;
+import io.github.sanduniliyanage.flaglane.serving.domain.ServedBody;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -112,8 +113,8 @@ class RulesetCacheTest {
         "production",
         version,
         Ruleset.empty("production", version),
-        "{}",
+        ServedBody.of("{}"),
         Ruleset.empty("production", version),
-        "{}");
+        ServedBody.of("{}"));
   }
 }

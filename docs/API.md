@@ -255,12 +255,27 @@ Vary: Authorization
 ETag: "<ruleset_version>-<key_type>"
 ```
 
+`GET /sdk/config` adds `Accept-Encoding` to `Vary`, on a `304` as on a `200`, because of the
+compression below.
+
 The ETag includes the key type because one URL returns two different bodies at the same version —
 a server key's full ruleset and a client key's filtered one. Keyed on the version alone, a client
 key's ETag would validate a server key's request, and any intermediary caching on URL could hand a
 browser the flags, rules and overrides that were filtered out for it. `Vary` and `no-store` close
 the same hole from the other side. `If-None-Match` with a matching ETag, weak or strong, or `*`,
 returns 304 with no body.
+
+### Compression
+
+`GET /sdk/config` sends the ruleset gzipped, with `Content-Encoding: gzip`, to a request whose
+`Accept-Encoding` accepts gzip, and as it is to one that does not or sends no `Accept-Encoding`.
+Browsers and Node's `fetch` ask for gzip and decode it without the SDK doing anything. Both codings
+are made once, when the environment's ruleset is rebuilt, never per request. How much smaller the
+gzipped ruleset is depends on how much its flags and values repeat; `docs/BENCHMARKS.md` measures a
+repetitive one and one with random keys and values. The ETag is the same for both, because it
+names the ruleset version and key type, which is what a poll asks about, and `no-store` means no
+cache keeps either coding to confuse with the other. A `304` is the same whatever the request
+accepts. `POST /sdk/evaluate` answers at most 100 results and is not compressed (ADR-033).
 
 ### Ruleset shape
 

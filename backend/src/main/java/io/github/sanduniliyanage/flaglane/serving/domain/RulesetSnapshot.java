@@ -7,8 +7,9 @@ import java.util.UUID;
 
 /**
  * One environment's ruleset at one {@code ruleset_version}, ready to serve: for each key type, the
- * engine's ruleset and the JSON body, built once when the environment changed and never per request
- * (NFR-PER-004, ADR-008). Immutable, so it is swapped in whole and read without locks.
+ * engine's ruleset and the JSON body, plain and gzipped, built once when the environment changed
+ * and never per request (NFR-PER-004, ADR-008, ADR-033). Immutable, so it is swapped in whole and
+ * read without locks.
  *
  * <p>A client key gets client-side-visible flags only (FR-KEY-005) and no overrides at all
  * (FR-KEY-008), on {@code GET /sdk/config} and {@code POST /sdk/evaluate} alike, because both read
@@ -19,9 +20,9 @@ public record RulesetSnapshot(
     String environmentKey,
     long version,
     Ruleset serverRuleset,
-    String serverBody,
+    ServedBody serverBody,
     Ruleset clientRuleset,
-    String clientBody) {
+    ServedBody clientBody) {
 
   public RulesetSnapshot {
     Objects.requireNonNull(environmentId, "environmentId");
@@ -35,8 +36,14 @@ public record RulesetSnapshot(
     return type == KeyType.CLIENT ? clientRuleset : serverRuleset;
   }
 
-  public String body(KeyType type) {
+  /** The body {@code GET /sdk/config} sends this key type. */
+  public ServedBody served(KeyType type) {
     return type == KeyType.CLIENT ? clientBody : serverBody;
+  }
+
+  /** The same body as JSON text. */
+  public String body(KeyType type) {
+    return served(type).json();
   }
 
   /**

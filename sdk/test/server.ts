@@ -5,6 +5,7 @@ import {
   createServer,
 } from "node:http";
 import type { AddressInfo } from "node:net";
+import { gzipSync } from "node:zlib";
 
 /** A real HTTP server standing in for Flaglane, which a test can stop, hang or misbehave. */
 export interface TestServer {
@@ -41,13 +42,16 @@ export async function unreachableUrl(): Promise<string> {
   return server.url;
 }
 
-/** Serves a ruleset with its ETag, answering 304 to a matching If-None-Match. */
-export function servingRuleset(ruleset: () => { version: number }, keyType = "server") {
+/**
+ * Serves a ruleset with its ETag, answering 304 to a matching If-None-Match. With `gzip`, it sends
+ * the body gzipped to a request that accepts gzip, as Flaglane does, with the same ETag.
+ */
+export function servingRuleset(ruleset: () => { version: number }, keyType = "server", gzip = false) {
   return (request: IncomingMessage, response: ServerResponse) => {
     const current = ruleset();
     const etag = `"${current.version}-${keyType}"`;
     response.setHeader("cache-control", "private, no-store");
-    response.setHeader("vary", "Authorization");
+    response.setHeader("vary", gzip ? "Authorization, Accept-Encoding" : "Authorization");
     response.setHeader("etag", etag);
     if (request.headers["if-none-match"] === etag) {
       response.statusCode = 304;
@@ -55,6 +59,11 @@ export function servingRuleset(ruleset: () => { version: number }, keyType = "se
       return;
     }
     response.setHeader("content-type", "application/json");
+    if (gzip && /\bgzip\b/.test(request.headers["accept-encoding"] ?? "")) {
+      response.setHeader("content-encoding", "gzip");
+      response.end(gzipSync(JSON.stringify(current)));
+      return;
+    }
     response.end(JSON.stringify(current));
   };
 }
