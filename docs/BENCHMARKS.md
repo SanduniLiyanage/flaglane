@@ -17,9 +17,10 @@ construction and measuring it proved nothing.
 
 ## Results
 
-Measured on 2026-10-07 against commit `f4097c9`, on the machine and under the conditions in
-[Method](#method). A range runs from the lowest to the highest figure across every timed round or
-run.
+Measured on 2026-10-07, on the machine and under the conditions in [Method](#method): first against
+commit `f4097c9`, then `GET /sdk/config` again against `8b20628`, after the ruleset was compressed
+(ADR-033). The earlier rows stay as the record of what compression changed. A range runs from the
+lowest to the highest figure across every timed round or run.
 
 | Date | Commit | Measurement | p50 | p95 | p99 | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -31,6 +32,11 @@ run.
 | 2026-10-07 | `f4097c9` | NFR-PER-002, `GET /sdk/config`, `304`, one client | 3.8–4.5 ms | 5.1–7.1 ms | 6.3–10.0 ms | What a polling SDK gets while nothing changes. 2 runs of 5,000 requests |
 | 2026-10-07 | `f4097c9` | NFR-PER-002, `GET /sdk/config`, full answer, 16 clients at once | 33.2–34.9 ms | 51.2–63.5 ms | 78.7–93.9 ms | **Above the 50 ms target.** 2 runs of 8,000 requests; see below |
 | 2026-10-07 | `f4097c9` | NFR-PER-003, a change through the management API to an SDK polling every 5 s | 1.98 s | 4.63 s | 4.93 s | Meets the target. 100 changes; the longest took 4.94 s |
+| 2026-10-07 | `8b20628` | NFR-PER-002, full answer gzipped, one client: generated ruleset, 506 KiB sent as 8 KiB | 2.7–3.2 ms | 5.6–6.3 ms | 7.7–8.7 ms | Meets the target. 2 runs of 5,000 requests |
+| 2026-10-07 | `8b20628` | NFR-PER-002, full answer gzipped, one client: varied ruleset, 530 KiB sent as 81–82 KiB | 4.1–4.5 ms | 7.1–7.9 ms | 8.6–9.8 ms | Meets the target. 2 runs of 5,000 requests |
+| 2026-10-07 | `8b20628` | NFR-PER-002, `304`, one client | 3.7–4.1 ms | 4.8–5.3 ms | 5.6–6.2 ms | Both rulesets. 4 runs of 5,000 requests |
+| 2026-10-07 | `8b20628` | NFR-PER-002, full answer gzipped, 16 clients at once: generated ruleset | 23.7–39.0 ms | 33.4–54.1 ms | 43.0–62.3 ms | **Above the 50 ms target in one run of two.** 2 runs of 8,000 requests; see below |
+| 2026-10-07 | `8b20628` | NFR-PER-002, full answer gzipped, 16 clients at once: varied ruleset | 38.7–42.3 ms | 55.2–55.7 ms | 64.9–65.5 ms | **Above the 50 ms target.** 2 runs of 8,000 requests; see below |
 
 **NFR-PER-001 holds for both implementations, with room to spare.** The server's engine answers the
 worst case in about a microsecond at the 99th percentile and the SDK in about three, against a budget
@@ -46,12 +52,36 @@ allocations were removed (`07aa231`). Those runs are not recorded as results, be
 follow the method below. Changing those two conditions moved the SDK's p99 from about 30 µs to about
 3, so a machine that is throttled or busy will see figures in between.
 
-**NFR-PER-002 holds for one client and does not hold for sixteen at once.** The requirement names no
-concurrency. One client at a time, the full 506 KiB ruleset of the 1,000-flag environment arrives
-with p99 27 to 30 ms, and an unchanged one, as a polling SDK mostly sees it, with p99 6 to 10 ms.
-With sixteen clients downloading the full ruleset at the same moment, p99 is 79 to 94 ms. That is a
-laptop serving 8 MiB of JSON at once through Docker Desktop's forwarding from the host into its
-virtual machine, and it is stated rather than left out. In normal operation most polls are `304`s with no body.
+**NFR-PER-002 holds for one client, and as measured still does not hold for sixteen at once.** The
+requirement names no concurrency. Before compression, one client received the full 506 KiB ruleset of
+the 1,000-flag environment with p99 27 to 30 ms, and sixteen at once with p99 79 to 94 ms. Since the
+ruleset is gzipped once when it is built (ADR-033), one client receives it with p99 8 to 10 ms,
+whether its keys and values repeat or are random, and sixteen at once with p99 43 to 65 ms: lower,
+and still above 50 ms in three runs of four. The row stays above target.
+
+**What remains is mostly the measuring process decoding sixteen answers at once.** The harness runs
+its sixteen clients in one Node process, which decodes every answer it receives, 506 or 530 KiB each,
+on one thread. Timed instead to the last byte as sent, undecoded, the same sixteen clients take p99
+16 to 30 ms, and from a container on the stack's own network, without Docker Desktop's forwarding
+from the host, 8 to 14 ms:
+
+| Sixteen clients at once, `8b20628` | Generated ruleset, p99 | Varied ruleset, p99 |
+| --- | --- | --- |
+| Full answer, decoded, from the host (the row above) | 43.0–62.3 ms | 64.9–65.5 ms |
+| Full answer, decoded, from the stack's network | 42.2–42.7 ms | 47.6–60.3 ms |
+| Full answer, undecoded, from the host | 15.8–19.5 ms | 26.1–29.6 ms |
+| Full answer, undecoded, from the stack's network | 7.7–9.3 ms | 11.9–14.0 ms |
+| `304`, from the host | 13.2–17.7 ms | 18.6–22.0 ms |
+| `304`, from the stack's network | 4.4–6.0 ms | 5.0–8.4 ms |
+
+So of the p99 the requirement's row records, the server and the network account for 8 to 14 ms, the
+forwarding from the Windows host into Docker's virtual machine for about as much again, and the
+difference between decoded and undecoded, roughly 25 to 50 ms, is one client process decoding
+sixteen rulesets together. Percentiles do not subtract exactly; the split is approximate. An SDK decodes one ruleset, in
+its own process, when the ruleset changes, and the one-client row includes that decoding. The
+harness is left measuring as it did, so the row stays comparable with the one before compression,
+and the decomposition is given beside it rather than in its place. In normal operation most polls
+are `304`s with no body.
 
 **NFR-PER-003 holds.** Every one of 100 changes reached the polling SDK within the five-second
 interval, the slowest in 4.94 s. The spread is the poll cycle itself: a change waits for the SDK's
@@ -113,6 +143,19 @@ of two seconds is that, not a property of the server.
 - **Timing:** from the request leaving to the last byte of the body arriving. 500 warm-up pairs of
   a full request and a `304`, then 5,000 full answers one at a time, 5,000 `304`s one at a time, and
   16 clients making 500 full requests each at the same time.
+- **Since compression (`8b20628`):** Node's `fetch` asks for gzip and decodes the answer, as the
+  SDK does, and the timing runs to the body decoded. The harness also times 16 clients making 500
+  `304` requests each at once, and 16 clients making 500 full requests each on a connection of their
+  own, read to the last byte as sent and not decoded. Each of the two rulesets ran twice from the host
+  and twice from a container on the stack's own Docker network (`node:24-slim`, Node v24.21.0,
+  `FLAGLANE_URL=http://api:8080`), interleaved, so that a change of conditions during the session
+  would show in both. `RULESET=varied` builds the same shape with random flag keys and match values,
+  which compress about 6.5 to one where the generated workload compresses about sixty to one; the two
+  bound what a real ruleset sends.
+- **Power during those runs:** sampled every five seconds from 18:13:33 to 18:29:10, 187 samples,
+  every one on mains. An earlier set of runs at `4d20a36` was discarded: the laptop went onto battery
+  at a time between 16:49, when it was last seen on mains, and 17:13, during those runs, and which
+  runs that touched cannot be known.
 
 ### NFR-PER-003: a change reaching a polling SDK
 
