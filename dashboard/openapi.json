@@ -1,0 +1,1957 @@
+{
+  "openapi" : "3.1.0",
+  "info" : {
+    "title" : "Flaglane API",
+    "description" : "Feature flags and remote configuration. `/api/**` serves the dashboard with a JWT; `/sdk/**` serves SDKs with an API key.",
+    "license" : {
+      "name" : "Apache License 2.0",
+      "url" : "https://www.apache.org/licenses/LICENSE-2.0"
+    },
+    "version" : "0.1.0"
+  },
+  "tags" : [ {
+    "name" : "Authentication",
+    "description" : "Accounts and access tokens for the dashboard"
+  }, {
+    "name" : "Serving",
+    "description" : "For SDKs, with an API key"
+  }, {
+    "name" : "Audit",
+    "description" : "The append-only record of every change to a project"
+  } ],
+  "paths" : {
+    "/api/projects/{projectKey}/flags/{flagKey}/config/{envKey}/rules" : {
+      "get" : {
+        "tags" : [ "Targeting" ],
+        "summary" : "Get a flag's rules in an environment",
+        "description" : "In priority order.",
+        "operationId" : "rules",
+        "parameters" : [ {
+          "name" : "flagKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "projectKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "envKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "404" : {
+            "description" : "No such project, environment or flag among yours",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearer-jwt" : [ ]
+        } ]
+      },
+      "put" : {
+        "tags" : [ "Targeting" ],
+        "summary" : "Replace a flag's rules in an environment",
+        "description" : "The whole ordered list at once, in one transaction, so no partial or reordered state is ever served (FR-RUL-004). A rule the engine could not apply is refused (FR-RUL-010).",
+        "operationId" : "replaceRules",
+        "parameters" : [ {
+          "name" : "flagKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "projectKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "envKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReplaceRulesRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "400" : {
+            "description" : "A rule cannot be applied; `errors` names it",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "The flag is archived",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No such project, environment or flag among yours",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearer-jwt" : [ ]
+        } ]
+      }
+    },
+    "/api/projects/{projectKey}/flags/{flagKey}/config/{envKey}/overrides" : {
+      "get" : {
+        "tags" : [ "Targeting" ],
+        "summary" : "Get a flag's user overrides in an environment",
+        "operationId" : "overrides",
+        "parameters" : [ {
+          "name" : "flagKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "projectKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "envKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "404" : {
+            "description" : "No such project, environment or flag among yours",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearer-jwt" : [ ]
+        } ]
+      },
+      "put" : {
+        "tags" : [ "Targeting" ],
+        "summary" : "Replace a flag's user overrides in an environment",
+        "description" : "The whole set at once. Overrides apply to server keys only: a client key's ruleset carries none, because their user keys are real user identifiers (FR-KEY-008).",
+        "operationId" : "replaceOverrides",
+        "parameters" : [ {
+          "name" : "flagKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "projectKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "envKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReplaceOverridesRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "409" : {
+            "description" : "The flag is archived",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No such project, environment or flag among yours",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearer-jwt" : [ ]
+        } ]
+      }
+    },
+    "/sdk/evaluate" : {
+      "post" : {
+        "tags" : [ "Serving" ],
+        "summary" : "Evaluate flags on the server",
+        "description" : "For clients that cannot hold a ruleset. Runs the same engine as the SDK against the same ruleset the key would download, so it answers exactly as in-process evaluation would (FR-SRV-002). An unknown flag, or one this key may not read, is the caller's fallback with reason `FLAG_NOT_FOUND`: never a 404 (FR-EVL-007).",
+        "operationId" : "evaluate",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/EvaluateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "One result per flag",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/EvaluateResponse"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Malformed body, or a flag without a fallback",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Missing, malformed or revoked key",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "503" : {
+            "description" : "The ruleset is not loaded yet; retry after the time given",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "sdk-key" : [ ]
+        } ]
+      }
+    },
+    "/api/projects" : {
+      "get" : {
+        "tags" : [ "Projects" ],
+        "summary" : "List your projects",
+        "description" : "Only projects you own (FR-PRJ-003).",
+        "operationId" : "list",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/ProjectResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearer-jwt" : [ ]
+        } ]
+      },
+      "post" : {
+        "tags" : [ "Projects" ],
+        "summary" : "Create a project",
+        "description" : "Creates the project with `development`, `staging` and `production` environments (FR-PRJ-001, FR-ENV-001). The key is unique across Flaglane and can never change.",
+        "operationId" : "create",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateProjectRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProjectResponse"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "The key is taken",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearer-jwt" : [ ]
+        } ]
+      }
+    },
+    "/api/projects/{projectKey}/flags" : {
+      "get" : {
+        "tags" : [ "Flags" ],
+        "summary" : "List a project's flags",
+        "description" : "Archived flags included.",
+        "operationId" : "list_1",
+        "parameters" : [ {
+          "name" : "projectKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "404" : {
+            "description" : "No such project or flag among yours",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearer-jwt" : [ ]
+        } ]
+      },
+      "post" : {
+        "tags" : [ "Flags" ],
+        "summary" : "Create a flag",
+        "description" : "Every environment gets a configuration: disabled, falling through to `false`, at 0% (FR-FLG-003).",
+        "operationId" : "create_1",
+        "parameters" : [ {
+          "name" : "projectKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateFlagRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlagResponse"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "The key is used by a live or an archived flag",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No such project or flag among yours",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearer-jwt" : [ ]
+        } ]
+      }
+    },
+    "/api/projects/{projectKey}/flags/{flagKey}/restore" : {
+      "post" : {
+        "tags" : [ "Flags" ],
+        "summary" : "Restore an archived flag",
+        "description" : "Same key, same configurations (FR-FLG-007).",
+        "operationId" : "restore",
+        "parameters" : [ {
+          "name" : "flagKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "projectKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "404" : {
+            "description" : "No such project or flag among yours",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearer-jwt" : [ ]
+        } ]
+      }
+    },
+    "/api/projects/{projectKey}/flags/{flagKey}/archive" : {
+      "post" : {
+        "tags" : [ "Flags" ],
+        "summary" : "Archive a flag",
+        "description" : "Removes it from every ruleset. Never a deletion: its history stays, its key stays reserved, and it can be restored (FR-FLG-005).",
+        "operationId" : "archive",
+        "parameters" : [ {
+          "name" : "flagKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "projectKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "404" : {
+            "description" : "No such project or flag among yours",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearer-jwt" : [ ]
+        } ]
+      }
+    },
+    "/api/projects/{projectKey}/environments" : {
+      "get" : {
+        "tags" : [ "Environments" ],
+        "summary" : "List a project's environments",
+        "operationId" : "list_2",
+        "parameters" : [ {
+          "name" : "projectKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "404" : {
+            "description" : "No such project or environment among yours",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearer-jwt" : [ ]
+        } ]
+      },
+      "post" : {
+        "tags" : [ "Environments" ],
+        "summary" : "Create an environment",
+        "description" : "Every flag in the project gets a configuration here, disabled, falling through to `false` at 0% (FR-ENV-004).",
+        "operationId" : "create_2",
+        "parameters" : [ {
+          "name" : "projectKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateEnvironmentRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/EnvironmentResponse"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "The project already has an environment with this key",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No such project or environment among yours",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearer-jwt" : [ ]
+        } ]
+      }
+    },
+    "/api/projects/{projectKey}/environments/{envKey}/keys" : {
+      "get" : {
+        "tags" : [ "API keys" ],
+        "summary" : "List an environment's keys",
+        "description" : "Prefix and metadata only.",
+        "operationId" : "list_3",
+        "parameters" : [ {
+          "name" : "projectKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "envKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "404" : {
+            "description" : "No such project, environment or key among yours",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearer-jwt" : [ ]
+        } ]
+      },
+      "post" : {
+        "tags" : [ "API keys" ],
+        "summary" : "Issue a key",
+        "description" : "The response carries the key, and is the only response that ever will (FR-KEY-002). Store it now; Flaglane keeps only a hash.",
+        "operationId" : "issue",
+        "parameters" : [ {
+          "name" : "projectKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "envKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/IssueApiKeyRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Issued",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/IssuedApiKeyResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No such project, environment or key among yours",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearer-jwt" : [ ]
+        } ]
+      }
+    },
+    "/api/auth/register" : {
+      "post" : {
+        "tags" : [ "Authentication" ],
+        "summary" : "Register an account",
+        "description" : "Creates a dashboard account (FR-ACC-001). The password is stored as a bcrypt hash. Sign in afterwards to obtain a token.",
+        "operationId" : "register",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Registered",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AccountResponse"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Malformed email, or a password outside the policy",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "An account already uses this email address",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "429" : {
+            "description" : "Too many registration and sign-in requests from this address: 10 a minute by default, shared by both endpoints (ADR-029)",
+            "headers" : {
+              "Retry-After" : {
+                "description" : "Seconds until this address may try again",
+                "style" : "simple"
+              }
+            },
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login" : {
+      "post" : {
+        "tags" : [ "Authentication" ],
+        "summary" : "Sign in",
+        "description" : "Issues one access token valid for 8 hours (FR-ACC-002). There is no refresh token, and signing out is discarding the token: nothing invalidates it server-side before it expires (ADR-012).",
+        "operationId" : "login",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Signed in",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AccessTokenResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unknown email or wrong password; the response does not say which",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "429" : {
+            "description" : "Too many registration and sign-in requests from this address: 10 a minute by default, shared by both endpoints (ADR-029)",
+            "headers" : {
+              "Retry-After" : {
+                "description" : "Seconds until this address may try again",
+                "style" : "simple"
+              }
+            },
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{projectKey}/flags/{flagKey}" : {
+      "get" : {
+        "tags" : [ "Flags" ],
+        "summary" : "Get a flag",
+        "operationId" : "get",
+        "parameters" : [ {
+          "name" : "flagKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "projectKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "404" : {
+            "description" : "No such project or flag among yours",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearer-jwt" : [ ]
+        } ]
+      },
+      "patch" : {
+        "tags" : [ "Flags" ],
+        "summary" : "Edit a flag",
+        "description" : "Name, description and client-side visibility. The key never changes.",
+        "operationId" : "update",
+        "parameters" : [ {
+          "name" : "flagKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "projectKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateFlagRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "409" : {
+            "description" : "The flag is archived",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No such project or flag among yours",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearer-jwt" : [ ]
+        } ]
+      }
+    },
+    "/api/projects/{projectKey}/flags/{flagKey}/config/{envKey}" : {
+      "get" : {
+        "tags" : [ "Flags" ],
+        "summary" : "Get a flag's configuration in an environment",
+        "operationId" : "get_1",
+        "parameters" : [ {
+          "name" : "flagKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "projectKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "envKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "404" : {
+            "description" : "No such project, environment or flag among yours",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearer-jwt" : [ ]
+        } ]
+      },
+      "patch" : {
+        "tags" : [ "Flags" ],
+        "summary" : "Change a flag's configuration in an environment",
+        "description" : "Kill switch, fallthrough value, rollout percentage and rollout salt. Takes effect on the environment's next ruleset. **Changing `rolloutSalt` re-buckets every user of this flag.**",
+        "operationId" : "update_1",
+        "parameters" : [ {
+          "name" : "flagKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "projectKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "envKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateFlagConfigRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "409" : {
+            "description" : "The flag is archived",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No such project, environment or flag among yours",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearer-jwt" : [ ]
+        } ]
+      }
+    },
+    "/sdk/config" : {
+      "get" : {
+        "tags" : [ "Serving" ],
+        "summary" : "Download the ruleset",
+        "description" : "Every flag the key may read, for in-process evaluation (FR-SRV-001). A client key gets client-side-visible flags only, with no overrides (FR-KEY-005, FR-KEY-008). The ETag is the ruleset version and the key type; send it as `If-None-Match` for a 304 while nothing has changed.",
+        "operationId" : "config",
+        "parameters" : [ {
+          "name" : "If-None-Match",
+          "in" : "header",
+          "description" : "An ETag from an earlier response",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The ruleset",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "304" : {
+            "description" : "Unchanged since the ETag sent",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Missing, malformed or revoked key",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "503" : {
+            "description" : "The ruleset is not loaded yet; retry after the time given",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "sdk-key" : [ ]
+        } ]
+      }
+    },
+    "/api/projects/{projectKey}/environments/{envKey}/configs" : {
+      "get" : {
+        "tags" : [ "Flags" ],
+        "summary" : "List every flag's configuration in an environment",
+        "description" : "One configuration per flag, archived flags included, ordered by flag key. Saves a client listing flags with their state one request per flag.",
+        "operationId" : "list_4",
+        "parameters" : [ {
+          "name" : "projectKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "envKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The configurations",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/FlagConfigResponse"
+                  }
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No such project or environment among yours",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearer-jwt" : [ ]
+        } ]
+      }
+    },
+    "/api/projects/{projectKey}/audit" : {
+      "get" : {
+        "tags" : [ "Audit" ],
+        "summary" : "Read the audit trail",
+        "description" : "Newest first, a page at a time. Pagination is keyset on (created_at, id), not offset: pass a page's `next` as `before` for the page after it, and an entry recorded meanwhile neither repeats nor shifts what follows (E-025).",
+        "operationId" : "page",
+        "parameters" : [ {
+          "name" : "environment",
+          "in" : "query",
+          "description" : "Only changes to this environment",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "production"
+        }, {
+          "name" : "flag",
+          "in" : "query",
+          "description" : "Only changes to this flag",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "new-checkout"
+        }, {
+          "name" : "before",
+          "in" : "query",
+          "description" : "The `next` of the previous page; leave out for the newest entries",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Entries per page, 1 to 100",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 50,
+            "maximum" : 100,
+            "minimum" : 1
+          }
+        }, {
+          "name" : "projectKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "One page",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AuditPageResponse"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "A `before` that is not a cursor, or a `limit` outside 1 to 100",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No such project among yours, or no such environment or flag in it",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearer-jwt" : [ ]
+        } ]
+      }
+    },
+    "/api/projects/{projectKey}/environments/{envKey}" : {
+      "delete" : {
+        "tags" : [ "Environments" ],
+        "summary" : "Delete an environment",
+        "description" : "Deletes the environment with its keys, configurations, rules and overrides. Its audit entries are kept. Refused while it holds a key that is not revoked (FR-ENV-003).",
+        "operationId" : "delete",
+        "parameters" : [ {
+          "name" : "projectKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "envKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Deleted"
+          },
+          "409" : {
+            "description" : "The environment holds an API key that is not revoked",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No such project or environment among yours",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearer-jwt" : [ ]
+        } ]
+      }
+    },
+    "/api/projects/{projectKey}/environments/{envKey}/keys/{keyId}" : {
+      "delete" : {
+        "tags" : [ "API keys" ],
+        "summary" : "Revoke a key",
+        "description" : "Refused on every SDK request from the moment this returns (FR-KEY-003). Revoking a revoked key is accepted and changes nothing.",
+        "operationId" : "revoke",
+        "parameters" : [ {
+          "name" : "keyId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "name" : "projectKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "envKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Revoked"
+          },
+          "404" : {
+            "description" : "No such project, environment or key among yours",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "bearer-jwt" : [ ]
+        } ]
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "ReplaceRulesRequest" : {
+        "type" : "object",
+        "properties" : {
+          "rules" : {
+            "type" : "array",
+            "description" : "In priority order. An empty list removes every rule (ADR-023: at most 100)",
+            "items" : {
+              "$ref" : "#/components/schemas/RuleRequest"
+            },
+            "maxItems" : 100,
+            "minItems" : 0
+          }
+        },
+        "required" : [ "rules" ]
+      },
+      "RuleRequest" : {
+        "type" : "object",
+        "properties" : {
+          "attribute" : {
+            "type" : "string",
+            "example" : "country",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "operator" : {
+            "type" : "string",
+            "enum" : [ "EQUALS", "NOT_EQUALS", "IN", "NOT_IN", "CONTAINS", "STARTS_WITH", "ENDS_WITH" ],
+            "example" : "IN",
+            "minLength" : 1
+          },
+          "matchValues" : {
+            "type" : "array",
+            "description" : "Strings, numbers or booleans. Exactly one for EQUALS, NOT_EQUALS, CONTAINS, STARTS_WITH and ENDS_WITH, the last three strings only; one or more of one type for IN and NOT_IN (ADR-019)",
+            "example" : [ "LK", "IN" ],
+            "items" : { },
+            "maxItems" : 1000,
+            "minItems" : 1
+          },
+          "resultValue" : {
+            "type" : "boolean",
+            "description" : "What the flag evaluates to when the rule matches"
+          }
+        },
+        "required" : [ "attribute", "matchValues", "operator", "resultValue" ]
+      },
+      "ProblemDetail" : {
+        "type" : "object",
+        "properties" : {
+          "type" : {
+            "type" : "string",
+            "format" : "uri"
+          },
+          "title" : {
+            "type" : [ "string", "null" ]
+          },
+          "status" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "detail" : {
+            "type" : [ "string", "null" ]
+          },
+          "instance" : {
+            "type" : [ "string", "null" ],
+            "format" : "uri"
+          },
+          "properties" : {
+            "type" : [ "object", "null" ],
+            "additionalProperties" : { }
+          }
+        }
+      },
+      "OverrideRequest" : {
+        "type" : "object",
+        "properties" : {
+          "userKey" : {
+            "type" : "string",
+            "example" : "u-1042",
+            "maxLength" : 256,
+            "minLength" : 0
+          },
+          "value" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "userKey", "value" ]
+      },
+      "ReplaceOverridesRequest" : {
+        "type" : "object",
+        "properties" : {
+          "overrides" : {
+            "type" : "array",
+            "description" : "An empty list removes every override (ADR-023: at most 1,000). Overrides do not apply to client keys, on either serving path (FR-KEY-008)",
+            "items" : {
+              "$ref" : "#/components/schemas/OverrideRequest"
+            },
+            "maxItems" : 1000,
+            "minItems" : 0
+          }
+        },
+        "required" : [ "overrides" ]
+      },
+      "Context" : {
+        "type" : "object",
+        "properties" : {
+          "key" : {
+            "type" : [ "string", "null" ],
+            "example" : "u-1042"
+          },
+          "attributes" : {
+            "type" : [ "object", "null" ],
+            "additionalProperties" : { },
+            "example" : {
+              "country" : "LK",
+              "plan" : "pro"
+            }
+          }
+        }
+      },
+      "EvaluateRequest" : {
+        "type" : "object",
+        "properties" : {
+          "context" : {
+            "$ref" : "#/components/schemas/Context",
+            "description" : "Who to evaluate for. Optional: without it, evaluation is anonymous"
+          },
+          "flags" : {
+            "type" : "array",
+            "description" : "The flags to evaluate, each with the value the caller has decided is safe",
+            "items" : {
+              "$ref" : "#/components/schemas/FlagRequest"
+            },
+            "maxItems" : 100,
+            "minItems" : 1
+          }
+        },
+        "required" : [ "flags" ]
+      },
+      "FlagRequest" : {
+        "type" : "object",
+        "properties" : {
+          "key" : {
+            "type" : "string",
+            "example" : "new-checkout",
+            "minLength" : 1
+          },
+          "fallback" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "fallback", "key" ]
+      },
+      "EvaluateResponse" : {
+        "type" : "object",
+        "properties" : {
+          "environment" : {
+            "type" : "string",
+            "example" : "production"
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "The ruleset_version the answers were computed from"
+          },
+          "results" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "$ref" : "#/components/schemas/Result"
+            }
+          }
+        }
+      },
+      "Result" : {
+        "type" : "object",
+        "properties" : {
+          "value" : {
+            "type" : "boolean"
+          },
+          "reason" : {
+            "type" : "string",
+            "enum" : [ "OFF", "OVERRIDE", "RULE_MATCH", "ROLLOUT", "FALLTHROUGH", "FLAG_NOT_FOUND", "ERROR" ]
+          }
+        }
+      },
+      "CreateProjectRequest" : {
+        "type" : "object",
+        "properties" : {
+          "key" : {
+            "type" : "string",
+            "description" : "Unique across Flaglane; immutable",
+            "example" : "storefront"
+          },
+          "name" : {
+            "type" : "string",
+            "example" : "Storefront",
+            "maxLength" : 100,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "name" ]
+      },
+      "ProjectResponse" : {
+        "type" : "object",
+        "properties" : {
+          "key" : {
+            "type" : "string",
+            "example" : "storefront"
+          },
+          "name" : {
+            "type" : "string",
+            "example" : "Storefront"
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
+      "CreateFlagRequest" : {
+        "type" : "object",
+        "properties" : {
+          "key" : {
+            "type" : "string",
+            "description" : "Unique in the project, archived flags included; can never change",
+            "example" : "new-checkout"
+          },
+          "name" : {
+            "type" : "string",
+            "example" : "New checkout",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "description" : {
+            "type" : [ "string", "null" ],
+            "maxLength" : 1000,
+            "minLength" : 0
+          },
+          "clientSideVisible" : {
+            "type" : "boolean",
+            "default" : false,
+            "description" : "Whether client keys may read it. Defaults to false: browser keys are public"
+          }
+        },
+        "required" : [ "name" ]
+      },
+      "FlagResponse" : {
+        "type" : "object",
+        "properties" : {
+          "key" : {
+            "type" : "string",
+            "example" : "new-checkout"
+          },
+          "name" : {
+            "type" : "string",
+            "example" : "New checkout"
+          },
+          "description" : {
+            "type" : [ "string", "null" ]
+          },
+          "clientSideVisible" : {
+            "type" : "boolean"
+          },
+          "archivedAt" : {
+            "type" : [ "string", "null" ],
+            "format" : "date-time",
+            "description" : "Set while the flag is archived"
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
+      "CreateEnvironmentRequest" : {
+        "type" : "object",
+        "properties" : {
+          "key" : {
+            "type" : "string",
+            "description" : "Unique within the project",
+            "example" : "qa"
+          },
+          "name" : {
+            "type" : "string",
+            "example" : "QA",
+            "maxLength" : 100,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "name" ]
+      },
+      "EnvironmentResponse" : {
+        "type" : "object",
+        "properties" : {
+          "key" : {
+            "type" : "string",
+            "example" : "production"
+          },
+          "name" : {
+            "type" : "string",
+            "example" : "Production"
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
+      "IssueApiKeyRequest" : {
+        "type" : "object",
+        "properties" : {
+          "name" : {
+            "type" : "string",
+            "example" : "checkout-service",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "type" : {
+            "type" : "string",
+            "description" : "`server` reads every flag; `client` reads client-side-visible flags only, with no user overrides",
+            "enum" : [ "server", "client" ]
+          }
+        },
+        "required" : [ "name", "type" ]
+      },
+      "IssuedApiKeyResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "enum" : [ "server", "client" ]
+          },
+          "prefix" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "key" : {
+            "type" : "string",
+            "description" : "The key. Shown once and never again",
+            "example" : "flg_srv_Xk3mP9qaR2vT8wY1zB4cD6eF0gH5jK7lM9nQ2sU4xW6"
+          }
+        }
+      },
+      "RegisterRequest" : {
+        "type" : "object",
+        "properties" : {
+          "email" : {
+            "type" : "string",
+            "format" : "email",
+            "description" : "Stored lower-cased; must be unused",
+            "example" : "amara@example.com",
+            "maxLength" : 254,
+            "minLength" : 0
+          },
+          "password" : {
+            "type" : "string",
+            "format" : "password",
+            "description" : "At least 15 characters and at most 72 bytes of UTF-8, the most bcrypt reads"
+          },
+          "displayName" : {
+            "type" : [ "string", "null" ],
+            "example" : "Amara Perera",
+            "maxLength" : 100,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "email" ]
+      },
+      "AccountResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "email" : {
+            "type" : "string",
+            "example" : "amara@example.com"
+          },
+          "displayName" : {
+            "type" : [ "string", "null" ],
+            "example" : "Amara Perera"
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
+      "LoginRequest" : {
+        "type" : "object",
+        "properties" : {
+          "email" : {
+            "type" : "string",
+            "example" : "amara@example.com",
+            "minLength" : 1
+          },
+          "password" : {
+            "type" : "string",
+            "format" : "password",
+            "minLength" : 1
+          }
+        },
+        "required" : [ "email", "password" ]
+      },
+      "AccessTokenResponse" : {
+        "type" : "object",
+        "properties" : {
+          "accessToken" : {
+            "type" : "string",
+            "description" : "Send as `Authorization: Bearer <accessToken>` on `/api/**`"
+          },
+          "tokenType" : {
+            "type" : "string",
+            "example" : "Bearer"
+          },
+          "expiresAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
+      "UpdateFlagRequest" : {
+        "type" : "object",
+        "properties" : {
+          "name" : {
+            "type" : [ "string", "null" ],
+            "maxLength" : 100,
+            "minLength" : 1
+          },
+          "description" : {
+            "type" : [ "string", "null" ],
+            "description" : "Empty clears it",
+            "maxLength" : 1000,
+            "minLength" : 0
+          },
+          "clientSideVisible" : {
+            "type" : [ "boolean", "null" ]
+          }
+        }
+      },
+      "UpdateFlagConfigRequest" : {
+        "type" : "object",
+        "properties" : {
+          "enabled" : {
+            "type" : [ "boolean", "null" ],
+            "description" : "The kill switch. Disabled returns false to everyone"
+          },
+          "fallthroughValue" : {
+            "type" : [ "boolean", "null" ],
+            "description" : "Returned when the flag is enabled and nothing else matched. While true, the rollout has no effect: everyone it does not reach gets true anyway"
+          },
+          "rolloutPercentage" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32",
+            "description" : "Whole percent of users, stored as basis points (ADR-011)",
+            "maximum" : 100,
+            "minimum" : 0
+          },
+          "rolloutSalt" : {
+            "type" : [ "string", "null" ],
+            "description" : "Changing the salt re-buckets every user of this flag: who has it at a given percentage changes. Give flags the same salt to roll them out to the same users (ADR-010)",
+            "pattern" : "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+          }
+        }
+      },
+      "FlagConfigResponse" : {
+        "type" : "object",
+        "properties" : {
+          "flagKey" : {
+            "type" : "string",
+            "example" : "new-checkout"
+          },
+          "environment" : {
+            "type" : "string",
+            "example" : "production"
+          },
+          "enabled" : {
+            "type" : "boolean"
+          },
+          "offValue" : {
+            "type" : "boolean",
+            "description" : "Always false in v0.x (ADR-009)"
+          },
+          "fallthroughValue" : {
+            "type" : "boolean"
+          },
+          "rolloutPercentage" : {
+            "type" : "integer",
+            "format" : "int32",
+            "maximum" : 100,
+            "minimum" : 0
+          },
+          "rolloutSalt" : {
+            "type" : "string",
+            "example" : "new-checkout"
+          },
+          "updatedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
+      "Actor" : {
+        "type" : "object",
+        "properties" : {
+          "email" : {
+            "type" : "string",
+            "example" : "amara@example.com"
+          },
+          "displayName" : {
+            "type" : [ "string", "null" ],
+            "example" : "Amara"
+          }
+        }
+      },
+      "AuditEntryResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "action" : {
+            "type" : "string",
+            "description" : "From the fixed vocabulary in DATABASE.md",
+            "example" : "config.updated"
+          },
+          "actor" : {
+            "$ref" : "#/components/schemas/Actor"
+          },
+          "environment" : {
+            "type" : [ "string", "null" ],
+            "description" : "The environment's key; null when the change was not to one environment. A deleted environment keeps the key it had",
+            "example" : "production"
+          },
+          "environmentDeleted" : {
+            "type" : "boolean",
+            "description" : "Whether the environment has been deleted since"
+          },
+          "flag" : {
+            "type" : [ "string", "null" ],
+            "description" : "The flag's key; null when the change was not to one flag",
+            "example" : "new-checkout"
+          },
+          "previousValue" : {
+            "type" : [ "object", "null" ],
+            "additionalProperties" : { },
+            "description" : "The state before, as recorded; null for a creation. A rollout is recorded as stored, in basis points under rolloutBasisPoints (ADR-030)"
+          },
+          "newValue" : {
+            "type" : [ "object", "null" ],
+            "additionalProperties" : { },
+            "description" : "The state after, as recorded; null for a deletion"
+          }
+        }
+      },
+      "AuditPageResponse" : {
+        "type" : "object",
+        "properties" : {
+          "entries" : {
+            "type" : "array",
+            "description" : "Newest first",
+            "items" : {
+              "$ref" : "#/components/schemas/AuditEntryResponse"
+            }
+          },
+          "next" : {
+            "type" : [ "string", "null" ],
+            "description" : "Pass as `before` for the next page; null when this page is the last",
+            "example" : "2026-10-05T09:30:00.123456Z,0f6b3b5e-7c2a-4f5e-9d61-2a4b8f0e1c3d"
+          }
+        }
+      }
+    },
+    "securitySchemes" : {
+      "bearer-jwt" : {
+        "type" : "http",
+        "description" : "An access token from `POST /api/auth/login`, valid for 8 hours.",
+        "scheme" : "bearer",
+        "bearerFormat" : "JWT"
+      },
+      "sdk-key" : {
+        "type" : "http",
+        "description" : "An API key issued for one environment. A server key reads every flag; a client key reads client-side-visible flags only, with no user overrides.",
+        "scheme" : "bearer",
+        "bearerFormat" : "flg_srv_… or flg_cli_…"
+      }
+    }
+  }
+}
