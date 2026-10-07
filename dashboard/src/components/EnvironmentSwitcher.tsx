@@ -13,11 +13,11 @@ export function EnvironmentSwitcher({ project, current }: { project: string; cur
   );
 
   const switchTo = (environment: string) => {
-    const [pathname = "", query] = location.split("?");
-    const segments = pathname.split("/");
-    // /projects/{project}/{environment}/...
-    segments[3] = encodeURIComponent(environment);
-    navigate(segments.join("/") + (query === undefined ? "" : `?${query}`));
+    const known = environments.state === "loaded" ? environments.data.map((env) => env.key) : [];
+    const to = inEnvironment(location, environment, known);
+    if (to !== null) {
+      navigate(to);
+    }
   };
 
   const options = environments.state === "loaded" ? environments.data : [];
@@ -38,4 +38,19 @@ export function EnvironmentSwitcher({ project, current }: { project: string; cur
       </select>
     </label>
   );
+}
+
+/**
+ * The same page in another environment, `/projects/{project}/{environment}/...`, or null when there
+ * is nowhere to go: the environment is the current one, or not one the project has, which would
+ * build an address with no page behind it.
+ */
+export function inEnvironment(location: string, environment: string, environments: readonly string[]): string | null {
+  const [pathname = "", query] = location.split("?");
+  if (!environments.includes(environment) || pathname.split("/")[3] === encodeURIComponent(environment)) {
+    return null;
+  }
+  const segments = pathname.split("/");
+  segments[3] = encodeURIComponent(environment);
+  return segments.join("/") + (query === undefined ? "" : `?${query}`);
 }
