@@ -2,8 +2,13 @@
 
 ## Supported versions
 
-Flaglane is pre-release. No version has been published yet, so only the `main` branch receives
-fixes. This section will list supported release lines once v0.1.0 ships.
+| Version | Security fixes |
+| --- | --- |
+| 0.1.x | Yes, as patch releases of the image and the SDK |
+| Earlier | None were released |
+
+Fixes land on `main` first and ship in the next patch release. Run the latest patch release of the
+latest line.
 
 ## Reporting a vulnerability
 
@@ -62,6 +67,10 @@ Stated here because a limitation you can read is worth more than one you discove
   users client-side with a targeting rule on an attribute your application already sends.
 - **API keys are bearer credentials with no scoping beyond environment and type.** A key reads
   everything its type entitles it to in its environment. There is no per-flag key.
+- **Revocation is immediate on one instance only.** Each API instance authenticates keys from its
+  own in-memory cache, which hears of a revoke made on that instance and of no other. v0.1 runs as
+  a single instance (ADR-036); a second one, or an old instance left running during a deploy, keeps
+  accepting a key revoked elsewhere until it restarts.
 
 ## Deployment notes
 

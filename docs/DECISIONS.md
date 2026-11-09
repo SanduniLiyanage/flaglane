@@ -285,6 +285,10 @@ system, and it fails hardest at the moment the kill switch is being used. Redis 
 piece of infrastructure for every self-hoster, to do what the database can already do. Sticky
 sessions — does not help; the problem is the write, not the reader.
 
+**Amended by ADR-036.** The fix above is not in v0.1: slice 4.8 moved to v0.2. Since this entry was
+written, the cache reconciles with the database once a minute, so a second instance is stale for up
+to a minute rather than until it restarts; its key cache still learns of keys only at startup.
+
 ---
 
 ## ADR-014 — Java 25 supersedes ADR-001's version choice
@@ -848,3 +852,96 @@ be charged; a second limit per client address for client keys — closer to what
 but a table of addresses per key, behind proxies that hide them, for a ceiling the setting already
 moves; separate settings per key type — two numbers whose right values depend on the same fleet;
 Bucket4j — ADR-029's reasons.
+
+---
+
+## ADR-036 — Cache invalidation across instances waits for v0.2
+
+ADR-013 made v0.x a single instance and named what would lift it: PostgreSQL `LISTEN`/`NOTIFY` on
+commit, "roughly forty lines", scheduled as slice 4.8 in v0.1. **Decision:** slice 4.8 moves to
+v0.2, and v0.1 runs exactly one API instance. The forty lines are the code; the channel is
+something to operate. A listener holds a database connection of its own, open for as long as the
+instance runs and outside the pool, and has to notice when it drops and come back. A notification
+sent while it is away is lost rather than queued, so the minute's reconciliation stays as the
+backstop and the guarantee is only as good as the reconnection. A pooler in transaction mode, which
+several managed PostgreSQL services offer as their pooled endpoint, cannot carry `LISTEN` at all, so
+a deployment has to provide a direct connection besides the pooled one, and whoever runs it has to
+know that. And the ruleset is not the only thing each instance holds: the key cache would have to
+hear of every issue and revoke as well, or a key revoked on one instance keeps working on another,
+and the rate limits of ADR-029 and ADR-035 would become allowances that multiply with the number of
+instances. One instance needs none of this, and one instance is what v0.1 is. **Consequences:**
+v0.1 says it runs one instance, in the README, `docs/ARCHITECTURE.md` and the SRS (E-043), and its
+guarantees are true for that deployment. A second instance, run anyway, serves a stale ruleset until
+it rebuilds — within about a minute, at its reconciliation, for a change handled by the other — and
+does not learn of a key issued or revoked on the other until it restarts, so a key revoked there
+keeps working. A deploy that runs the old and the new instance side by side has the same gaps for as
+long as they overlap. **Rejected:** building 4.8 for v0.1 anyway — the channel's failure modes would
+ship tested only in the deployment shape v0.1 does not support; a shorter reconciliation as the
+mechanism between instances — more load on the database for a stale window that is still not zero,
+and nothing for keys; Redis pub/sub — ADR-013's reason, a second piece of infrastructure for every
+self-hoster.
+
+---
+
+## ADR-037 — Forwarded headers, believed only from a proxy on a private address
+
+ADR-029 limits sign-in per client address and left reading a reverse proxy's forwarded headers to
+slice 1.10. Behind a proxy every connection comes from the proxy, so every client shares one
+allowance of ten a minute, and one client guessing passwords holds everyone else out of sign-in.
+No request looks like HTTPS either: Spring Security sends no `Strict-Transport-Security`, and the
+OpenAPI document names an `http://` server that Swagger UI, loaded over HTTPS, cannot call.
+**Decision:** `FLAGLANE_FORWARDED_HEADERS` is Spring Boot's `server.forward-headers-strategy`,
+`none` by default and `native` behind a proxy. `native` installs Tomcat's `RemoteIpValve`, which
+believes `X-Forwarded-For` and `X-Forwarded-Proto` only from a peer it counts as a proxy: by default
+any loopback, link-local, RFC 1918, carrier-grade NAT (100.64.0.0/10) or IPv6 unique local address,
+replaced by setting `SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES`. The client is the rightmost forwarded
+address that is not a proxy's, so whatever a client writes in the header itself is passed over, as
+long as the proxy appends the address it saw, which the common ones do. `framework`, Spring's
+`ForwardedHeaderFilter`, is refused at startup, because it believes the headers from any peer.
+**Consequences:** behind a proxy each client has its own sign-in allowance, a request the proxy
+received over HTTPS is secure to the application, and HSTS is sent. Off is the default because a
+peer on a private address need not be a proxy: on the Compose stack every request arrives through
+Docker's port forwarding from the network's gateway, a private address, and believing headers from
+it would let any client name a new address, and get a new allowance, on every request. For the same
+reason a deployment that sets `native` must not let clients reach the API from a private address
+except through the proxy, which `docs/DEPLOYMENT.md` says. A proxy that connects from a public
+address has to be named in `SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES`, as a regular expression, which
+is Tomcat's format. The serving API's limit is per key and is unaffected. **Rejected:** `framework` —
+any client could name its own address; reading `X-Forwarded-For` in the sign-in limiter — a second,
+partial copy of what Tomcat already does, which would still leave the scheme wrong; the RFC 7239
+`Forwarded` header — few proxies send it unless configured to, and the valve reads the
+`X-Forwarded-*` headers they do send; on by default — the Compose stack above.
+
+---
+
+## ADR-038 — v0.1 ships an image anyone can deploy, not an instance the project runs
+
+Slice 1.10 was "deployed to a public URL with a managed PostgreSQL", and milestone 1's exit
+criteria said the service is reachable on the internet. The point, in the roadmap's words, was
+that deployment is never the thing that fails in the last week. An instance run by the project
+would prove that once, on one host, and would then be a service to operate: with registration open,
+as v0.1's is, anyone could keep their flags on it, so it would hold strangers' accounts and data,
+cost money every month, and need someone to answer for it, none of which a team evaluating a
+self-hosted tool needs from v0.1. What they need is something they can run and instructions that
+work. Deployment is on the roadmap's never-cut list, and this is not a cut of it: what the list
+protects is that Flaglane deploys, from a published artefact, by instructions that have been
+followed. One URL on one host was the evidence chosen for that, and this replaces the evidence, not
+the claim. **Decision:** v0.1 runs no public instance. Each release tag publishes the API image to
+GitHub's container registry as `ghcr.io/sanduniliyanage/flaglane`, tagged with the version, its
+minor line and `latest`, built natively for `linux/amd64` and `linux/arm64`, with a provenance
+attestation and an SBOM from BuildKit; `docs/DEPLOYMENT.md` is the guide to running it. The
+workflow can be run by hand to build both platforms without publishing, and is, before a tag
+depends on it. **Consequences:** there is no demonstration URL; the demonstration is `docker
+compose up` and the demo shop, which CI runs on every push against the image built from that
+commit. The risk 1.10 guarded against is covered by that run, by the healthcheck CI waits on, and by
+the guide's role SQL having been run on PostgreSQL 16 as an administrator that is not a superuser,
+as managed services provide. What is still unproven is a connection to a managed provider over
+TLS, which no test has made; the guide's TLS settings are the driver's documented ones, untried
+against a provider, and say so here rather than nowhere. A new package on GitHub's registry is
+private until its owner makes it public, once, in the package's settings. **Rejected:** an instance
+with open registration — strangers' data on a service nobody committed to run; an instance with
+registration closed — it proves deployment to its owner and shows an evaluator nothing, for a
+monthly cost; Docker Hub — a second account and a token to store, where the registry beside the
+repository uses the token every workflow already has; building `arm64` under emulation — the
+Gradle build under QEMU takes many times longer, and GitHub provides Arm runners for public
+repositories.

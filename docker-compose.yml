@@ -46,13 +46,30 @@ services:
       FLAGLANE_DB_APP_PASSWORD: ${FLAGLANE_DB_APP_PASSWORD:?set FLAGLANE_DB_APP_PASSWORD in .env}
       FLAGLANE_JWT_SECRET: ${FLAGLANE_JWT_SECRET:?set FLAGLANE_JWT_SECRET in .env}
       # Optional, passed through only when set in .env; unset, the API's own defaults apply.
+      # FLAGLANE_FORWARDED_HEADERS stays unset unless a reverse proxy is put in front (ADR-037).
       FLAGLANE_AUTH_RATE_LIMIT_PER_MINUTE:
       FLAGLANE_SDK_RATE_LIMIT_PER_MINUTE:
+      FLAGLANE_FORWARDED_HEADERS:
     ports:
       - "8080:8080"
-    # No healthcheck: the runtime image carries no HTTP client, and nothing in the stack waits
-    # on the API yet. If one is added, probe /actuator/health/readiness, never /actuator/health:
-    # the aggregate reports 503 during a database outage by design (NFR-REL-003).
+    healthcheck:
+      # Readiness, never /actuator/health, which reports 503 during a database outage by design
+      # (NFR-REL-003). The runtime image carries no HTTP client, so bash speaks HTTP/1.0 over its
+      # own /dev/tcp rather than the image gaining one.
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/8080
+          && printf 'GET /actuator/health/readiness HTTP/1.0\r\n\r\n' >&3
+          && head -n 1 <&3 | grep -q '^HTTP/1\.[01] 200'
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      # Migrations and the first ruleset build happen before readiness; failures until then do
+      # not count against the retries.
+      start_period: 90s
 
 volumes:
   postgres-data:

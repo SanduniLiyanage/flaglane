@@ -72,6 +72,29 @@ A slice is done when all of these hold:
 - A decision with lasting consequences is recorded in `docs/DECISIONS.md`
 - No `TODO` remains without a linked issue
 
+## Releasing
+
+A release is an annotated tag on `main`, `vMAJOR.MINOR.PATCH`, and everything it publishes is built
+from that commit.
+
+1. The version is written in three places, changed together: `backend/build.gradle.kts`,
+   `OpenApiConfiguration` (then regenerate the OpenAPI snapshot and the dashboard's types, as
+   `CONTRIBUTING.md` shows), and `sdk/package.json`.
+2. In `CHANGELOG.md`, the Unreleased section becomes the version with its date, under a new, empty
+   Unreleased section.
+3. Run the release workflow on `main` by hand (Actions, Release, Run workflow). It builds the image
+   for both platforms and publishes nothing. Tag only once it passes.
+4. `git tag --annotate vX.Y.Z --message "Flaglane X.Y.Z"`, then push the tag. The workflow
+   publishes `ghcr.io/sanduniliyanage/flaglane` (ADR-038), then pulls the published image back and
+   runs it against PostgreSQL on an x86-64 and an Arm runner: healthy, reporting the version, serving
+   the dashboard, registering and signing in. Run the workflow by hand with a version to repeat that
+   check for a release already published.
+5. Publish the SDK from `sdk/` with `npm publish`. npm stages the version rather than publishing
+   it, and an owner of the `flaglane` organisation approves it on npmjs.com, under Staged
+   Packages, with two-factor authentication. A version number can be used once, ever, even if the
+   version is later removed.
+6. `gh release create vX.Y.Z --verify-tag`, with the version's changelog section as the notes.
+
 ## Changing a requirement
 
 Requirements change; pretending otherwise produces documents nobody trusts. When one does:

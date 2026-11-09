@@ -46,8 +46,18 @@ public final class FlaglanePostgres extends PostgreSQLContainer<FlaglanePostgres
     }
   }
 
+  /**
+   * Spring keeps every test context it starts, up to 32, and each holds a pool of ten connections
+   * to the shared container, the application's own configuration. PostgreSQL's default of 100
+   * connections ran out at ten contexts, failing whichever class started the next one; this is room
+   * for the whole cache and the tests' own JDBC connections besides.
+   */
+  private static final int MAX_CONNECTIONS = 400;
+
   public FlaglanePostgres() {
     super("postgres:16");
+    // Replaces the image's default command, so it repeats the fsync=off Testcontainers sets.
+    setCommand("postgres", "-c", "fsync=off", "-c", "max_connections=" + MAX_CONNECTIONS);
     withCopyFileToContainer(
         MountableFile.forHostPath(initScript(), 0755), "/docker-entrypoint-initdb.d/10-roles.sh");
     withEnv("FLAGLANE_DB_MIGRATOR_PASSWORD", MIGRATOR_PASSWORD);

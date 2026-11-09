@@ -67,10 +67,12 @@ Flaglane is a flag engine, not an experimentation platform. It does not include:
 - Role-based access control, SSO, or approval workflows
 - Scheduled flag changes
 - SDKs beyond TypeScript
-- Horizontal scaling. **v0.x runs as a single API instance.** The ruleset cache lives in process,
-  so a second instance would serve flags up to a minute stale, until it reconciles with the
-  database. PostgreSQL `LISTEN`/`NOTIFY` is the intended fix and is on the roadmap; until it ships,
-  run one instance (ADR-013)
+- Horizontal scaling. **v0.1 runs as a single API instance.** The ruleset cache, the key cache and
+  the rate limits live in process, so a second instance would serve flags up to a minute stale,
+  until it reconciles with the database, and would keep accepting a key revoked on the other until
+  it restarts. Invalidation across instances over PostgreSQL `LISTEN`/`NOTIFY` is planned for
+  v0.2. Until then, run one instance, and stop the old one before starting the new one when you
+  deploy (ADR-013, ADR-036)
 - Server-side sign-out. Dashboard sessions are a single access token with no revocation list, so
   signing out discards it in the browser and it stays valid until it expires (ADR-012)
 
@@ -105,6 +107,14 @@ on 5432, set `FLAGLANE_DB_PORT` in `.env` to publish PostgreSQL on another port.
 To see it work, run the [demo shop](examples/demo-shop/) against that stack. It is a small
 storefront on the SDK: move a rollout from the command line and the shop changes within five
 seconds, then stop the API and the shop keeps going.
+
+## Deploying
+
+Each release is published as the container image `ghcr.io/sanduniliyanage/flaglane`, for x86-64
+and Arm. Run one container of it behind your host's HTTPS proxy, with one managed PostgreSQL 16
+database. [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) covers creating the two database roles,
+connecting over TLS, the environment variables, reading the client's address through the proxy,
+health checks and upgrades. Run exactly one instance.
 
 See [docs/](docs/) for architecture, API contract, database design and testing strategy.
 

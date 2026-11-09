@@ -8,13 +8,14 @@ Status is updated as slices merge. Anything not listed here is not in v0.1.
 | --- | --- |
 | 1.1 Build skeleton | Done |
 | 1.2 Schema | Done. `V2__roles.sql` grants; the role itself is provisioned by the environment (ADR-016). `V3__audit_append_only.sql` landed with it, together with suite 10, because a trigger without its suite is not done — which completes slice 3.9 early |
-| 1.3 Docker Compose | Done. The API image carries no HTTP client, so the `api` service has no Compose healthcheck yet |
+| 1.3 Docker Compose | Done. The API image carries no HTTP client; since 1.10 the `api` service's healthcheck probes readiness over bash's `/dev/tcp` instead |
 | 1.4 GitHub Actions | Done. Format, analysis, tests, image build, and since slice 2.5 the coverage gate: `check` fails below 90% line coverage in `evaluation/` (97.9% when it landed) |
 | 1.5 springdoc-openapi | Done. `/v3/api-docs` and Swagger UI are served; the document has no paths until slice 1.6 adds the first endpoint |
 | 1.6 Registration, login, JWT | Done. `POST /api/auth/register` and `/login`; one 8-hour HS256 token, verified by Spring Security's resource server (ADR-021). `/api/**` and everything else have separate filter chains. Registration is not audited (E-037). `FLAGLANE_JWT_SECRET` is required by Compose and has no default |
 | 1.7 Projects and environments | Done. Tenancy is structural: repositories take `OwnerScope`, `ProjectScope` or `EnvironmentScope`, which only `TenantResolver` creates by an owner-scoped query, and an interceptor resolves them before the request body is read. Suite 5 passes, with endpoints enumerated from `RequestMappingHandlerMapping`. Every mutation is audited in its own transaction (`Propagation.MANDATORY`). Environment deletion needed V4 (ADR-022). FR-ENV-004 is published as an event here and lands with flags in 1.9 |
 | 1.8 API keys | Done. `flg_srv_`/`flg_cli_` keys from 32 CSPRNG bytes; only the SHA-256 and a 16-character prefix are stored, and the key is in one response. `/sdk/**` has its own chain and authenticates from an in-memory key cache with no database query, updated after commit so a revoked key is refused before the revoke returns. `last_used_at` is flushed once a minute off the request path. Every `/sdk/**` response, 401s included, is `Cache-Control: private, no-store` with `Vary: Authorization`. Suite 5 now also tries other tenants' key ids inside the caller's own environment |
 | 1.9 Flags and configurations | Done. A flag gets a disabled, 0% configuration in every environment; a new environment gets one for every live flag (FR-ENV-004); restoring a flag fills in environments created while it was archived. Archived flags are read-only until restored. The management API takes and shows whole percentages and stores basis points; fractional percentages are refused rather than truncated. `ruleset_version` is bumped in the transaction of every write that changes what an environment serves, and a `RulesetChanged` event is published for the cache in 2.7 |
+| 1.10 Deployment | **Redefined on 2026-11-09 (ADR-038):** no instance run by the project, and a release image anyone can run instead. A version tag publishes `ghcr.io/sanduniliyanage/flaglane`, built natively for `linux/amd64` and `linux/arm64` with provenance and an SBOM; run by hand, the workflow builds both and publishes nothing, and did so before the first tag. The first image was published with v0.1.0. What a deployment needs from the code is in: behind a proxy, the client's address and scheme come from `X-Forwarded-For` and `X-Forwarded-Proto`, believed only from a private address (ADR-037, E-044), so sign-in is limited per client and HSTS is sent; the Compose healthcheck; and `docs/DEPLOYMENT.md`, whose role SQL was run on PostgreSQL 16 as an administrator that is not a superuser, as managed services provide |
 | 2.1 `evaluation/` types | Done. `Ruleset`, `FlagConfig`, `TargetingRule`, `UserContext` and the `Value` family; a source-level test fails the build if `evaluation/` imports anything outside `java.*`. Number equality and the empty user key decided in ADR-017 |
 | 2.2 Bucketing | Done. MurmurHash3 x86_32 in `evaluation/`, buckets 0–9999. Suites 1, 2, 3 and 11 were written first and pass against the committed 100,000-key fixture; every bucket of that fixture matches the reference C implementation. Unpaired surrogates hash as U+FFFD (ADR-018) |
 | 2.3 Resolution order | Done. `Evaluator` returns a value and a `Reason`; suite 4 is one row per branch, 26 rows, and suite 4a's fixture runs through the whole engine as well as rule by rule. A malformed rule that evaluation reaches resolves to the fallthrough value (ADR-020) |
@@ -26,7 +27,7 @@ Status is updated as slices merge. Anything not listed here is not in v0.1.
 | 2.10 Audit in the same transaction | Done early, with slice 1.7's first mutations: `AuditLog.record` is `Propagation.MANDATORY`, so an entry cannot commit apart from its change. Each later slice audits its own mutations as it lands |
 | 2.4 Operators | Done, ahead of 2.3, because the resolution-order suite needs rules that can match. Seven operators, compiled once per ruleset build. Suite 4a's rows are in the shared fixture `comparison-semantics.json` for the SDK to run too. Operator shapes and negation decided in ADR-019 |
 | 4.1, 4.3, 4.4 Streaming | **Cut for v0.1** — cut list item 1, invoked on 2026-10-06 (ADR-027). No `GET /sdk/stream`; SDKs poll every five seconds, with backoff and jitter while the server is unreachable, which shipped with 4.2 |
-| 4.2 TypeScript SDK | Done. `@flaglane/sdk` in `sdk/`: `init`, ruleset cache, in-process evaluation, no runtime dependencies (ADR-026). Updates by polling `GET /sdk/config` every five seconds with its ETag. Ready to publish; not yet published to npm |
+| 4.2 TypeScript SDK | Done. `@flaglane/sdk` in `sdk/`: `init`, ruleset cache, in-process evaluation, no runtime dependencies (ADR-026). Updates by polling `GET /sdk/config` every five seconds with its ETag. Published to npm as 0.1.0 with the release, through npm's staged publishing and approved with two-factor authentication; the published tarball is byte for byte what `sdk/` builds |
 | 4.5 Offline and never-throws | Done. Suite 8 runs the SDK against a real local server that is stopped, hung, failing or serving garbage: evaluation carries on from the last ruleset, a start with Flaglane unreachable answers with the caller's fallback, startup is held no longer than the init timeout, and nothing throws |
 | 4.6 Parity | Done. Suite 9: the shared fixtures `evaluation-parity.json`, `comparison-semantics.json` and `bucketing-vectors.json` run in both implementations, the TypeScript half written before the SDK's engine and seen failing against stubs; every bucket of the 100,000-key set agrees with the reference MurmurHash3 on both sides |
 | 4.9 Demo shop | Done. `examples/demo-shop`: a storefront on the SDK with a server key, a rollout with an override and a targeting rule, and scripts that stand in for the dashboard through the management API (ADR-028). `npm run verify` checks milestone 4's exit criteria against a running stack; against Compose, four changes reached the shop in 0.05 to 4.99 s, and with the API stopped the shop kept applying the override, the rule and the rollout from its last ruleset. CI runs both checks on every push (gate 7). Linked from `sdk/` until the package is published |
@@ -42,6 +43,8 @@ Status is updated as slices merge. Anything not listed here is not in v0.1.
 | 3.7 Key management | Done. The plaintext key is shown in the one response that carries it, with a copy control, and leaving while it is shown asks first; afterwards the list shows the prefix only. Revoking says what it does before it is done: refused from the moment it returns, applications already running keep their last ruleset without further changes, one started later gets its code's defaults |
 | 3.8 Audit trail view | Done, over 3.10's read API: newest first, fifty at a time by keyset, narrowed to an environment or a flag through the address. Entries name the actor, environment and flag, a deleted environment by the key it had. Recorded states are shown as recorded, a rollout in basis points with the unit named and the whole percentage beside it where it is one (ADR-034). **Milestone 3's exit criterion holds:** a flag created, targeted with an override and two rules, turned on and rolled out to 30% entirely through the interface, checked in a browser against the built image, with each of its changes in the trail and the ruleset its key downloads carrying exactly what the interface set |
 | 4.7 Rate limiting per key | Done, with the token bucket the sign-in limit brought (ADR-035). 600 requests a minute per key by default, `FLAGLANE_SDK_RATE_LIMIT_PER_MINUTE` to change it, charged before the handler runs so a refused request reads no body; a `304` costs a tenth, so one key serves 500 SDKs polling every five seconds (E-042). 429 with `Retry-After`, which the SDK now waits out as it does a 503's. A revoked key's bucket is dropped when the revoke commits, and refilled buckets every minute |
+| 4.8 Invalidation across instances | **Moved to v0.2** on 2026-11-09 (ADR-036, E-043). v0.1 runs exactly one API instance and says so in the README, `docs/ARCHITECTURE.md`, `SECURITY.md` and the SRS. The channel would have to carry key issues and revokes as well as rulesets, and hold a connection outside the pool that poolers in transaction mode cannot carry; one instance needs none of it |
+| 4.11 Release | Done. v0.1.0 tagged on 2026-11-09: the image on GitHub's container registry for `linux/amd64` and `linux/arm64`, the SDK on npm, and the changelog's 0.1.0 section as the release notes. The published image's provenance names the tagged commit on both platforms, and the release workflow now runs the published image on an x86-64 and an Arm runner after publishing, as anyone would pull it. The npm placeholder `0.0.0-stage` is deprecated. How to cut the next one is in `docs/WORKFLOW.md` |
 | Everything else | Not started |
 
 ## Principles
@@ -72,7 +75,7 @@ before:
 - the slices marked ◇ moving to v0.2. They are chosen so that nothing on the *never cut* list
   is at risk: `4.7` rate limiting, `4.8` multi-instance propagation, `4.10` the propagation
   benchmark. `3.9` database-level audit enforcement was one of them and has since landed with
-  slice 1.2.
+  slice 1.2. `4.7` and `4.10` landed in v0.1; `4.8` moved to v0.2 (ADR-036).
 
 A four-week version of this plan existed and was not true. Milestone 1 alone — ten slices
 including JWT authentication and a public deployment with managed PostgreSQL — is two weeks, and
@@ -95,7 +98,7 @@ Goal: an empty but deployed, tested, documented service.
 | 1.7 | Projects and environments, with `TenantContext` and scoped repositories | 1.5 | FR-PRJ-001 to FR-ENV-004 |
 | 1.8 | API key issuance, format, hashing, key cache, authentication filter, revocation | 1.5 | FR-KEY-001 to FR-KEY-007 |
 | 1.9 | Flags and per-environment configurations, archive and restore | 1 | FR-FLG-001 to FR-FLG-007 |
-| 1.10 | Deployed to a public URL with a managed PostgreSQL | 0.5 | — |
+| 1.10 | ~~Deployed to a public URL with a managed PostgreSQL~~ Redefined (ADR-038): a release image on GitHub's container registry, and `docs/DEPLOYMENT.md` | 0.5 | — |
 
 Slice 1.1 carries an open decision: **the static analysis tool is not chosen.** SpotBugs, Error
 Prone and PMD are three different dependencies with three different failure modes, and CLAUDE.md
@@ -104,6 +107,10 @@ the CI gate in `docs/TESTING.md` names a tool that does not exist.
 
 Exit criteria: a signed-in user creates a project, a flag and a key. CI is green. The service is
 reachable on the internet. No evaluation exists yet.
+
+**Amended (ADR-038):** "reachable on the internet" is replaced by "the release image is published,
+and runs against a database provisioned as `docs/DEPLOYMENT.md` says". v0.1 runs no public
+instance; deployment stays on the never-cut list, with the image and the guide as its evidence.
 
 ---
 
@@ -179,15 +186,16 @@ Goal: a real application consumes it, and Flaglane going down does not matter.
 | 4.5 | Offline behaviour and never-throws; suite 8 | 0.5 | FR-SDK-005, FR-SDK-006 |
 | 4.6 | Parity suite against shared fixtures; suite 9 | 1 | FR-SDK-007 |
 | 4.7 ◇ | Rate limiting per key | 1 | NFR-SEC-005 |
-| 4.8 ◇ | `LISTEN`/`NOTIFY` cache invalidation across instances | 1 | NFR-PER-003, NFR-REL-002 |
+| 4.8 ◇ | ~~`LISTEN`/`NOTIFY` cache invalidation across instances~~ Moved to v0.2 (ADR-036) | 1 | NFR-PER-003, NFR-REL-002 |
 | 4.9 | `examples/demo-shop`: a small storefront using the SDK | 1 | — |
 | 4.10 ◇ | Propagation benchmark: a change to SDK pickup under polling; `docs/BENCHMARKS.md` completed | 0.5 | NFR-PER-003 |
 | 4.11 | Release: v0.1.0 tag, CHANGELOG updated | 0.5 | — |
 
-Slice 4.8 is what lifts the single-instance constraint recorded in ADR-013. Until it lands, a
-second instance runs a stale cache and the SDKs polling it never see a change made on the other,
-so v0.1 ships as a single instance and says so in the README, in `docs/ARCHITECTURE.md` and in
-the ADR.
+Slice 4.8 is what lifts the single-instance constraint recorded in ADR-013, and it has moved to
+v0.2 (ADR-036). v0.1 ships as a single instance and says so in the README, in
+`docs/ARCHITECTURE.md` and in the SRS (E-043). A second instance, run anyway, serves a stale
+ruleset until its next reconciliation, within about a minute, and keeps accepting a key revoked on
+the other until it restarts. No suite tested 4.8, so milestone 4's exit criteria are unchanged.
 
 Exit criteria: moving the rollout — in the dashboard, or through the management API until the
 dashboard exists — visibly changes the demo shop **within five seconds**. Stopping the API leaves the
@@ -224,6 +232,8 @@ numbers. Those are the claims the project rests on.
 
 Not commitments; a record of what was considered and deferred.
 
+- Ruleset and key invalidation across instances over PostgreSQL `LISTEN`/`NOTIFY`, slice 4.8,
+  planned for v0.2 (ADR-036)
 - Multivariate flags (string, number, JSON variations)
 - A Java SDK
 - An OpenFeature provider, so applications already using the standard can point at Flaglane
