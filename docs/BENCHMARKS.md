@@ -9,7 +9,7 @@ hardware, and against which commit, or it does not go in.
 | --- | --- | --- | --- |
 | NFR-PER-001 | In-process evaluation, 1,000 flags loaded, 50 rules on the flag under evaluation | p99 under 25 µs | 2.7 |
 | NFR-PER-002 | `GET /sdk/config` served from cache | p99 under 50 ms | 2.8 |
-| NFR-PER-003 | A change through the management API to a polling SDK using it | within 5 s, the poll interval (E-039) | 4.10 |
+| NFR-PER-003 | A change through the management API reaching an SDK, over its stream and by polling | under 1 s over a stream; within 5 s, the poll interval, by polling (E-047) | 4.10, 5.4 |
 
 NFR-PER-001's budget was tightened from 1 ms during the specification review (erratum E-013). A
 hash and a map lookup cannot approach a millisecond, so the original target was satisfied by
@@ -19,8 +19,9 @@ construction and measuring it proved nothing.
 
 Measured on 2026-10-07, on the machine and under the conditions in [Method](#method): first against
 commit `f4097c9`, then `GET /sdk/config` again against `8b20628`, after the ruleset was compressed
-(ADR-033). The earlier rows stay as the record of what compression changed. A range runs from the
-lowest to the highest figure across every timed round or run.
+(ADR-033). The earlier rows stay as the record of what compression changed. NFR-PER-003 was measured
+again on 2026-11-09, against `00eff07`, once the SDK streamed (ADR-040). A range runs from the lowest
+to the highest figure across every timed round or run.
 
 | Date | Commit | Measurement | p50 | p95 | p99 | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -37,6 +38,8 @@ lowest to the highest figure across every timed round or run.
 | 2026-10-07 | `8b20628` | NFR-PER-002, `304`, one client | 3.7–4.1 ms | 4.8–5.3 ms | 5.6–6.2 ms | Both rulesets. 4 runs of 5,000 requests |
 | 2026-10-07 | `8b20628` | NFR-PER-002, full answer gzipped, 16 clients at once: generated ruleset | 23.7–39.0 ms | 33.4–54.1 ms | 43.0–62.3 ms | **Above the 50 ms target in one run of two.** 2 runs of 8,000 requests; see below |
 | 2026-10-07 | `8b20628` | NFR-PER-002, full answer gzipped, 16 clients at once: varied ruleset | 38.7–42.3 ms | 55.2–55.7 ms | 64.9–65.5 ms | **Above the 50 ms target.** 2 runs of 8,000 requests; see below |
+| 2026-11-09 | `00eff07` | NFR-PER-003, a change to an SDK over its stream, timed from the change being sent | 27.2–30.0 ms | 40.6–42.2 ms | 48.1–124.0 ms | Meets the target. 2 runs of 100 changes; the slowest took 150 ms |
+| 2026-11-09 | `00eff07` | NFR-PER-003, a change to an SDK polling every 5 s, timed from the change being sent | 2,532 ms | 4,543 ms | 4,881 ms | Meets its bound. 1 run of 100 changes; the slowest took 4.92 s |
 
 **NFR-PER-001 holds for both implementations, with room to spare.** The server's engine answers the
 worst case in about a microsecond at the 99th percentile and the SDK in about three, against a budget
@@ -88,7 +91,26 @@ interval, the slowest in 4.94 s. The spread is the poll cycle itself: a change w
 next poll, so its pickup time is close to uniform between nothing and five seconds, and the median
 of two seconds is that, not a property of the server.
 
+**Over the stream, NFR-PER-003's sub-second target holds with room to spare** (E-047). Of 200
+changes, timed from the `PATCH` being sent until the SDK held the version it produced, the median was
+27 to 30 ms and the slowest 150 ms. Most of that is the change itself: the `PATCH` alone took 20 to
+21 ms at the median, because the server commits, rebuilds the 1,000-flag ruleset and compresses it
+before it answers (ADR-008, ADR-033). The event, the SDK's conditional download of the ruleset, about
+8 KiB gzipped, and its decoding of some 506 KiB of JSON account for the remaining 7 to 9 ms. The tail
+is the writes', not the stream's: in each run the slowest changes were the slowest `PATCH`es, which
+took up to 143 ms. The polling run, timed the same way, reached the SDK within 4.92 s, the poll
+interval and one request, as the earlier row did; its figures are not directly comparable with that
+row's, which were timed from the `PATCH` returning.
+
+**Two runs were discarded.** The laptop went onto battery during the first pass, from 23:15:56 to
+23:22:27, which covered a streaming run and the start of a polling run. They are not results. The
+streaming one, timed on battery, measured a median of 73 ms against 27 to 30 ms on mains, which is
+why the method requires mains.
+
 ## Method
+
+The method below was followed on 2026-10-07. The measurements of 2026-11-09 differ where
+[NFR-PER-003 over the stream](#nfr-per-003-over-the-stream-and-by-polling-since-00eff07) says.
 
 ### Machine and conditions
 
@@ -170,3 +192,27 @@ of two seconds is that, not a property of the server.
   ruleset version the change produced, checked every millisecond. The server rebuilds its cache
   before the `PATCH` returns, so that version is the one `GET /sdk/config` serves from then on; the
   harness learns it with one more request, which falls inside the time measured.
+
+### NFR-PER-003 over the stream and by polling, since `00eff07`
+
+- **Machine:** the laptop and operating system above, on mains power. Unlike 2026-10-07, Docker
+  containers unrelated to the benchmark were running, idle, among them another Flaglane stack.
+- **Stack:** `docker compose up --build` from commit `00eff07`, under a project name of its own,
+  with credentials generated for the run and no port published to the host, and removed afterwards
+  with its volume. A fresh stack for each of two passes. The API ran Eclipse Temurin 25.0.4 against
+  PostgreSQL 16.15, in Docker Desktop 29.1.3.
+- **Harness:** `sdk/bench/propagation.ts` with Node v24.21.0 in a `node:24-slim` container on the
+  stack's own network, `FLAGLANE_URL=http://api:8080`, so no request crossed Docker Desktop's
+  forwarding from the host; the SDK built from the same commit, with its defaults, which stream.
+  `STREAMING=false` for the polling run. Each run builds the NFR-PER-001 workload in a new project.
+- **Timing:** 100 changes per run, each a `PATCH` of the flag under evaluation's rollout in
+  production, alternating between 30% and 60%, after a random wait of up to five seconds. Each is
+  timed from the `PATCH` being sent to the SDK holding the version the change produced, checked
+  every millisecond: the commit, the rebuild, the event or the next poll, and the download. Every
+  write moves the environment's version on by one, so the version waited for is the one before
+  plus one, known before the timing starts; after it ends, the harness checks that the server and
+  the SDK both hold exactly that version. The `PATCH`'s own round trip is timed beside it.
+- **Power:** sampled every five seconds through both passes. The first, 23:15:15 to 23:36:18, was
+  on battery from 23:15:56 to 23:22:27, so its first two runs are discarded and its third, a
+  streaming run from 23:31:11, which was on mains throughout, is recorded. The second, 23:37:01 to
+  23:51:42, was on mains in all 176 samples: one polling run, then one streaming run.

@@ -280,11 +280,12 @@ FR-STR-001 to FR-STR-004, is slice 5.1; the SDK's, FR-SDK-003, is slice 5.2 (E-0
   the flag under evaluation. A one-millisecond budget is unfailable — a hash and a map lookup
   cannot approach it — and a measurement that cannot fail is not evidence.
 - **NFR-PER-002** `GET /sdk/config`: p99 under 50 ms served from cache, measured locally.
-- **NFR-PER-003** A change reaches running SDKs within the poll interval, five seconds, plus one
-  request, on the single-instance deployment v0.1 supports (ADR-013). Under a second needs the
-  stream, which is not in v0.1 (E-039). Across instances it does not hold: v0.1 has no channel
-  between instances, and a write handled by one reaches another only when that one next reconciles
-  with the database, within about a minute (E-043).
+- **NFR-PER-003** A change reaches a running SDK that holds a stream in under one second, timed from
+  the change being sent to the SDK holding the ruleset it produced; an SDK without a stream, such as
+  a v0.1 SDK or one whose stream is down, within the poll interval, five seconds, plus one request
+  (E-039, E-047). Both on a single instance (ADR-013). Across instances it does not hold yet: a
+  write handled by one instance reaches another only when that one next reconciles with the
+  database, within about a minute (E-043).
 - **NFR-PER-004** No `/sdk/**` request performs a database query on the request path. The engine
   is a pure function over an in-memory ruleset; key authentication is served from the in-memory key
   cache (FR-KEY-007); `last_used_at` is flushed asynchronously (FR-KEY-006). "Evaluation path"
@@ -387,3 +388,4 @@ Corrections to this document, recorded rather than silently edited.
 | E-044 | NFR-SEC-006 | Behind a declared reverse proxy, the client address is read from `X-Forwarded-For`, and only when the connection comes from a proxy on a private address. Undeclared, it is the connecting peer's. | Behind a proxy every request came from the proxy's address, so all clients shared one allowance and one client could hold every other out of sign-in; believing the header from anyone would let each client name a new address per request (ADR-037). |
 | E-045 | FR-SRV-003, FR-STR-001 to FR-STR-004 | Built for v0.2. A stream's first event carries the version served when it opened; each event's id is that version; an event is sent after the ruleset cache has the new version, never at commit; a stream lasts at most 30 minutes before the server ends it; the heartbeat is every 25 seconds; a stream beyond a ceiling is refused with `Retry-After: 60`. | The requirements did not say when an event is sent, what an SDK reconnecting learns, or how long a stream lives. Sent at commit, an event could send an SDK for a ruleset the cache did not have yet; without a first event, a change made while an SDK reconnected waited for its next poll; with no lifetime, a connection stays on whichever instance or proxy it first reached (ADR-039). |
 | E-046 | FR-SDK-003, FR-SDK-004 | The SDK streams by default and downloads on an event; it polls whenever it has no stream or lacks an announced version, and not while its stream is open and it is up to date. A failed or silent stream is reopened with backoff; a server with no stream is polled. | E-039 made polling the SDK's only means for v0.1. With the stream built (E-045), an SDK that kept polling beside it would cost the server twelve requests a minute per process for nothing, and one that only streamed would stop learning of changes whenever a proxy, an outage or a v0.1 server took the stream away (ADR-040). |
+| E-047 | NFR-PER-003 | The sub-second target is restored for an SDK holding a stream, timed from the change being sent; five seconds plus one request remains the bound without a stream. | E-039 dropped it when the stream was cut. With the stream built (E-045, E-046), a change reached an SDK over it with a median of 27 to 30 ms and at most 150 ms in 200 on the measuring laptop, and the slowest were the server's own writes, not the stream (`docs/BENCHMARKS.md`). |
