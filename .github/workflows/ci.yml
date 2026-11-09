@@ -135,7 +135,9 @@ jobs:
         run: npm ci && npm run typecheck
 
       # Credentials made for this run and discarded with the runner; nothing is stored as a secret.
-      - name: Start PostgreSQL and the API
+      # --wait returns once both services' healthchecks pass, the API's being its readiness probe,
+      # so this also checks that the healthcheck works.
+      - name: Start PostgreSQL and the API, and wait until they are ready
         run: |
           umask 077
           {
@@ -144,18 +146,7 @@ jobs:
             echo "FLAGLANE_DB_APP_PASSWORD=$(openssl rand -hex 24)"
             echo "FLAGLANE_JWT_SECRET=$(openssl rand -base64 48)"
           } > .env
-          docker compose up --detach --build
-
-      - name: Wait for the API to be ready
-        run: |
-          for attempt in $(seq 1 90); do
-            if curl --silent --fail http://localhost:8080/actuator/health/readiness > /dev/null; then
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "The API was not ready after three minutes"
-          exit 1
+          docker compose up --detach --build --wait --wait-timeout 180
 
       - name: Seed, start the shop, and time a change reaching it
         working-directory: examples/demo-shop

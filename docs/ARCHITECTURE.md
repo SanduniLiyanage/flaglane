@@ -248,7 +248,7 @@ append-only guarantee that only holds when nobody is a superuser is not a guaran
 Liveness is `/actuator/health/liveness` and ignores the database. Readiness is
 `/actuator/health/readiness` and requires the ruleset cache only. Database health is a separate
 indicator that gates no traffic (NFR-REL-003) — an outage must not get the serving path evicted
-by its own orchestrator.
+by its own orchestrator. The Compose stack's healthcheck probes readiness.
 
 Deployed, the API sits behind a reverse proxy that terminates TLS, and every connection comes from
 that proxy. With `FLAGLANE_FORWARDED_HEADERS=native` the client's address and scheme are read from

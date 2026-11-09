@@ -8,7 +8,7 @@ Status is updated as slices merge. Anything not listed here is not in v0.1.
 | --- | --- |
 | 1.1 Build skeleton | Done |
 | 1.2 Schema | Done. `V2__roles.sql` grants; the role itself is provisioned by the environment (ADR-016). `V3__audit_append_only.sql` landed with it, together with suite 10, because a trigger without its suite is not done — which completes slice 3.9 early |
-| 1.3 Docker Compose | Done. The API image carries no HTTP client, so the `api` service has no Compose healthcheck yet |
+| 1.3 Docker Compose | Done. The API image carries no HTTP client; since 1.10 the `api` service's healthcheck probes readiness over bash's `/dev/tcp` instead |
 | 1.4 GitHub Actions | Done. Format, analysis, tests, image build, and since slice 2.5 the coverage gate: `check` fails below 90% line coverage in `evaluation/` (97.9% when it landed) |
 | 1.5 springdoc-openapi | Done. `/v3/api-docs` and Swagger UI are served; the document has no paths until slice 1.6 adds the first endpoint |
 | 1.6 Registration, login, JWT | Done. `POST /api/auth/register` and `/login`; one 8-hour HS256 token, verified by Spring Security's resource server (ADR-021). `/api/**` and everything else have separate filter chains. Registration is not audited (E-037). `FLAGLANE_JWT_SECRET` is required by Compose and has no default |
