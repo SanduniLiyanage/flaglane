@@ -911,3 +911,37 @@ any client could name its own address; reading `X-Forwarded-For` in the sign-in 
 partial copy of what Tomcat already does, which would still leave the scheme wrong; the RFC 7239
 `Forwarded` header — few proxies send it unless configured to, and the valve reads the
 `X-Forwarded-*` headers they do send; on by default — the Compose stack above.
+
+---
+
+## ADR-038 — v0.1 ships an image anyone can deploy, not an instance the project runs
+
+Slice 1.10 was "deployed to a public URL with a managed PostgreSQL", and milestone 1's exit
+criteria said the service is reachable on the internet. The point, in the roadmap's words, was
+that deployment is never the thing that fails in the last week. An instance run by the project
+would prove that once, on one host, and would then be a service to operate: with registration open,
+as v0.1's is, anyone could keep their flags on it, so it would hold strangers' accounts and data,
+cost money every month, and need someone to answer for it, none of which a team evaluating a
+self-hosted tool needs from v0.1. What they need is something they can run and instructions that
+work. Deployment is on the roadmap's never-cut list, and this is not a cut of it: what the list
+protects is that Flaglane deploys, from a published artefact, by instructions that have been
+followed. One URL on one host was the evidence chosen for that, and this replaces the evidence, not
+the claim. **Decision:** v0.1 runs no public instance. Each release tag publishes the API image to
+GitHub's container registry as `ghcr.io/sanduniliyanage/flaglane`, tagged with the version, its
+minor line and `latest`, built natively for `linux/amd64` and `linux/arm64`, with a provenance
+attestation and an SBOM from BuildKit; `docs/DEPLOYMENT.md` is the guide to running it. The
+workflow can be run by hand to build both platforms without publishing, and is, before a tag
+depends on it. **Consequences:** there is no demonstration URL; the demonstration is `docker
+compose up` and the demo shop, which CI runs on every push against the image built from that
+commit. The risk 1.10 guarded against is covered by that run, by the healthcheck CI waits on, and by
+the guide's role SQL having been run on PostgreSQL 16 as an administrator that is not a superuser,
+as managed services provide. What is still unproven is a connection to a managed provider over
+TLS, which no test has made; the guide's TLS settings are the driver's documented ones, untried
+against a provider, and say so here rather than nowhere. A new package on GitHub's registry is
+private until its owner makes it public, once, in the package's settings. **Rejected:** an instance
+with open registration — strangers' data on a service nobody committed to run; an instance with
+registration closed — it proves deployment to its owner and shows an evaluator nothing, for a
+monthly cost; Docker Hub — a second account and a token to store, where the registry beside the
+repository uses the token every workflow already has; building `arm64` under emulation — the
+Gradle build under QEMU takes many times longer, and GitHub provides Arm runners for public
+repositories.

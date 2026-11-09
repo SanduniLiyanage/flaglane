@@ -15,7 +15,7 @@ Status is updated as slices merge. Anything not listed here is not in v0.1.
 | 1.7 Projects and environments | Done. Tenancy is structural: repositories take `OwnerScope`, `ProjectScope` or `EnvironmentScope`, which only `TenantResolver` creates by an owner-scoped query, and an interceptor resolves them before the request body is read. Suite 5 passes, with endpoints enumerated from `RequestMappingHandlerMapping`. Every mutation is audited in its own transaction (`Propagation.MANDATORY`). Environment deletion needed V4 (ADR-022). FR-ENV-004 is published as an event here and lands with flags in 1.9 |
 | 1.8 API keys | Done. `flg_srv_`/`flg_cli_` keys from 32 CSPRNG bytes; only the SHA-256 and a 16-character prefix are stored, and the key is in one response. `/sdk/**` has its own chain and authenticates from an in-memory key cache with no database query, updated after commit so a revoked key is refused before the revoke returns. `last_used_at` is flushed once a minute off the request path. Every `/sdk/**` response, 401s included, is `Cache-Control: private, no-store` with `Vary: Authorization`. Suite 5 now also tries other tenants' key ids inside the caller's own environment |
 | 1.9 Flags and configurations | Done. A flag gets a disabled, 0% configuration in every environment; a new environment gets one for every live flag (FR-ENV-004); restoring a flag fills in environments created while it was archived. Archived flags are read-only until restored. The management API takes and shows whole percentages and stores basis points; fractional percentages are refused rather than truncated. `ruleset_version` is bumped in the transaction of every write that changes what an environment serves, and a `RulesetChanged` event is published for the cache in 2.7 |
-| 1.10 Public deployment | **In progress: the host is not chosen.** Picking one and its managed PostgreSQL needs an account, so the URL does not exist yet and milestone 1's "reachable on the internet" does not hold. What the deployment needs from the repository is in: behind a proxy, the client's address and scheme come from `X-Forwarded-For` and `X-Forwarded-Proto`, believed only from a private address (ADR-037, E-044), so sign-in is limited per client and HSTS is sent; the Compose healthcheck; and `docs/DEPLOYMENT.md`, whose role SQL was run on PostgreSQL 16 as an administrator that is not a superuser, as managed services provide |
+| 1.10 Deployment | **Redefined on 2026-11-09 (ADR-038):** no instance run by the project, and a release image anyone can run instead. A version tag publishes `ghcr.io/sanduniliyanage/flaglane`, built natively for `linux/amd64` and `linux/arm64` with provenance and an SBOM; run by hand, the workflow builds both and publishes nothing, and did so before the first tag. The first image is published with v0.1.0. What a deployment needs from the code is in: behind a proxy, the client's address and scheme come from `X-Forwarded-For` and `X-Forwarded-Proto`, believed only from a private address (ADR-037, E-044), so sign-in is limited per client and HSTS is sent; the Compose healthcheck; and `docs/DEPLOYMENT.md`, whose role SQL was run on PostgreSQL 16 as an administrator that is not a superuser, as managed services provide |
 | 2.1 `evaluation/` types | Done. `Ruleset`, `FlagConfig`, `TargetingRule`, `UserContext` and the `Value` family; a source-level test fails the build if `evaluation/` imports anything outside `java.*`. Number equality and the empty user key decided in ADR-017 |
 | 2.2 Bucketing | Done. MurmurHash3 x86_32 in `evaluation/`, buckets 0–9999. Suites 1, 2, 3 and 11 were written first and pass against the committed 100,000-key fixture; every bucket of that fixture matches the reference C implementation. Unpaired surrogates hash as U+FFFD (ADR-018) |
 | 2.3 Resolution order | Done. `Evaluator` returns a value and a `Reason`; suite 4 is one row per branch, 26 rows, and suite 4a's fixture runs through the whole engine as well as rule by rule. A malformed rule that evaluation reaches resolves to the fallthrough value (ADR-020) |
@@ -97,7 +97,7 @@ Goal: an empty but deployed, tested, documented service.
 | 1.7 | Projects and environments, with `TenantContext` and scoped repositories | 1.5 | FR-PRJ-001 to FR-ENV-004 |
 | 1.8 | API key issuance, format, hashing, key cache, authentication filter, revocation | 1.5 | FR-KEY-001 to FR-KEY-007 |
 | 1.9 | Flags and per-environment configurations, archive and restore | 1 | FR-FLG-001 to FR-FLG-007 |
-| 1.10 | Deployed to a public URL with a managed PostgreSQL | 0.5 | — |
+| 1.10 | ~~Deployed to a public URL with a managed PostgreSQL~~ Redefined (ADR-038): a release image on GitHub's container registry, and `docs/DEPLOYMENT.md` | 0.5 | — |
 
 Slice 1.1 carries an open decision: **the static analysis tool is not chosen.** SpotBugs, Error
 Prone and PMD are three different dependencies with three different failure modes, and CLAUDE.md
@@ -106,6 +106,10 @@ the CI gate in `docs/TESTING.md` names a tool that does not exist.
 
 Exit criteria: a signed-in user creates a project, a flag and a key. CI is green. The service is
 reachable on the internet. No evaluation exists yet.
+
+**Amended (ADR-038):** "reachable on the internet" is replaced by "the release image is published,
+and runs against a database provisioned as `docs/DEPLOYMENT.md` says". v0.1 runs no public
+instance; deployment stays on the never-cut list, with the image and the guide as its evidence.
 
 ---
 

@@ -18,7 +18,26 @@ limits in its own memory, and in v0.1 nothing tells one instance about a change 
 another: a second instance serves rulesets up to a minute stale and keeps accepting a key revoked on
 the first until it restarts (ADR-013, ADR-036).
 
-There is no published image yet. Build it from a clone:
+From v0.1.0, every release is published as **`ghcr.io/sanduniliyanage/flaglane`**, for
+`linux/amd64` and `linux/arm64` (ADR-038):
+
+| Tag | Points to |
+| --- | --- |
+| `0.1.0` | That release, and never anything else |
+| `0.1` | The latest patch release of 0.1 |
+| `latest` | The latest release |
+
+Deploy a full version such as `0.1.0`. Migrations run when the container starts and only go
+forward (section 5), so a tag that moves would upgrade you, irreversibly, the next time the host
+restarted the container. Each image carries a provenance attestation, which records the commit and
+workflow that built it, and an SBOM listing what it contains:
+
+```bash
+docker buildx imagetools inspect ghcr.io/sanduniliyanage/flaglane:0.1.0 --format '{{ json .Provenance }}'
+docker buildx imagetools inspect ghcr.io/sanduniliyanage/flaglane:0.1.0 --format '{{ json .SBOM }}'
+```
+
+To build the same image from a clone instead:
 
 ```bash
 docker build --file backend/Dockerfile --tag flaglane:0.1.0 .
@@ -93,6 +112,21 @@ Configuration comes from environment variables only. Nothing has a default that 
 A missing required variable stops the application at startup with the variable named. The JVM sizes
 its heap from the container's memory limit, so set one.
 
+On a host that runs containers from a dashboard, enter the image and the variables there. On a
+machine of your own, with the proxy on the same machine:
+
+```bash
+docker run --detach --name flaglane --restart unless-stopped \
+  --env-file flaglane.env \
+  --publish 127.0.0.1:8080:8080 \
+  --memory 1g \
+  ghcr.io/sanduniliyanage/flaglane:0.1.0
+```
+
+`flaglane.env` holds the variables, one `NAME=value` per line; make it readable by you alone.
+Publishing on `127.0.0.1` lets the proxy reach the container and nothing else on the network,
+which section 3 depends on.
+
 ## 3. Behind the proxy
 
 Set `FLAGLANE_FORWARDED_HEADERS=native`. Without it every request seems to come from the proxy, so
@@ -151,4 +185,4 @@ after the backup was taken is gone with it and has to be issued again.
 - **More than one instance**, for capacity or for deploys without a gap (ADR-036).
 - **Server-side sign-out.** A dashboard token stays valid for eight hours, whatever happens in the
   browser (ADR-012).
-- **A published image.** Build it from source until v0.1.0 is released.
+- **A hosted instance.** The project runs none; you run your own (ADR-038).
