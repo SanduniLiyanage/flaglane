@@ -105,6 +105,13 @@ To see it work, run the [demo shop](examples/demo-shop/) against that stack. It 
 storefront on the SDK: move a rollout from the command line and the shop changes within five
 seconds, then stop the API and the shop keeps going.
 
+## Deploying
+
+One container behind your host's HTTPS proxy, and one managed PostgreSQL 16 database.
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) covers creating the two database roles, connecting over
+TLS, the environment variables, reading the client's address through the proxy, health checks and
+upgrades. Run exactly one instance.
+
 See [docs/](docs/) for architecture, API contract, database design and testing strategy.
 
 ## Stack
