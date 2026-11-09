@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { FlaglaneClient } from "../src/index.js";
 import { type ParityFixture, fixture } from "./fixtures.js";
-import { type TestServer, servingRuleset, startServer, waitFor } from "./server.js";
+import { rulesetRequests, servingRuleset, startServer, type TestServer, waitFor } from "./server.js";
 
 const rulesets = fixture<ParityFixture>("evaluation-parity.json").rulesets;
 const production = rulesets["production"] as { version: number; flags: unknown[] };
@@ -32,17 +32,17 @@ describe("the client", () => {
     const { server, client } = await setUp(() => production);
 
     expect(client.ready).toBe(true);
-    expect(server.requests[0]?.url).toBe("/sdk/config");
-    expect(server.requests[0]?.headers.authorization).toBe("Bearer flg_srv_test-key");
-    expect(server.requests[0]?.headers["if-none-match"]).toBeUndefined();
+    expect(rulesetRequests(server)[0]?.url).toBe("/sdk/config");
+    expect(rulesetRequests(server)[0]?.headers.authorization).toBe("Bearer flg_srv_test-key");
+    expect(rulesetRequests(server)[0]?.headers["if-none-match"]).toBeUndefined();
   });
 
   it("re-asks with the ETag, and an unchanged ruleset costs a 304", async () => {
     const { server, client } = await setUp(() => production);
 
-    await waitFor(() => server.requests.length >= 3);
+    await waitFor(() => rulesetRequests(server).length >= 3);
 
-    expect(server.requests[1]?.headers["if-none-match"]).toBe('"7-server"');
+    expect(rulesetRequests(server)[1]?.headers["if-none-match"]).toBe('"7-server"');
     expect(client.version).toBe(7);
   });
 
@@ -76,9 +76,9 @@ describe("the client", () => {
     clients.push(client);
 
     expect(client.ready).toBe(true);
-    expect(server.requests[0]?.headers["accept-encoding"]).toMatch(/\bgzip\b/);
-    await waitFor(() => server.requests.length >= 2);
-    expect(server.requests[1]?.headers["if-none-match"]).toBe('"7-server"');
+    expect(rulesetRequests(server)[0]?.headers["accept-encoding"]).toMatch(/\bgzip\b/);
+    await waitFor(() => rulesetRequests(server).length >= 2);
+    expect(rulesetRequests(server)[1]?.headers["if-none-match"]).toBe('"7-server"');
     expect(client.version).toBe(7);
 
     current = { ...production, version: 8 };
@@ -114,10 +114,10 @@ describe("the client", () => {
     const { server, client } = await setUp(() => production);
 
     client.close();
-    const after = server.requests.length;
+    const after = rulesetRequests(server).length;
     await new Promise((resolve) => setTimeout(resolve, 100));
 
-    expect(server.requests.length).toBeLessThanOrEqual(after + 1);
+    expect(rulesetRequests(server).length).toBeLessThanOrEqual(after + 1);
     expect(client.isOn("rollout-30", { key: "user-1" })).toBe(true);
   });
 

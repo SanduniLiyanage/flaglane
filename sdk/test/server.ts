@@ -35,6 +35,13 @@ export async function startServer(
   };
 }
 
+/**
+ * The requests for the ruleset, without the SDK's attempts at a stream, for tests about polling.
+ */
+export function rulesetRequests(server: TestServer): TestServer["requests"] {
+  return server.requests.filter((request) => request.url === "/sdk/config");
+}
+
 /** A URL on which nothing listens: a port that was free a moment ago. */
 export async function unreachableUrl(): Promise<string> {
   const server = await startServer(() => {});
@@ -66,6 +73,57 @@ export function servingRuleset(ruleset: () => { version: number }, keyType = "se
     }
     response.end(JSON.stringify(current));
   };
+}
+
+/** A stand-in for a Flaglane that streams: the ruleset at `/sdk/config`, events at `/sdk/stream`. */
+export interface StreamingServer extends TestServer {
+  /** Streams open now. */
+  readonly open: Set<ServerResponse>;
+  /** Stream requests received, answered or not. */
+  streamRequests(): number;
+  /** Writes text to every open stream, as is. */
+  send(text: string): void;
+  /** Tells every open stream that the ruleset is now at `version`, as Flaglane does. */
+  announce(version: number): void;
+  /** Ends every open stream, as Flaglane does at a stream's lifetime. */
+  endStreams(): void;
+}
+
+/**
+ * Serves the ruleset and a stream whose first event is the current version, as Flaglane does
+ * (docs/API.md). `onStream` may answer a stream request itself instead, by returning true.
+ */
+export async function startStreamingServer(
+  ruleset: () => { version: number },
+  onStream?: (request: IncomingMessage, response: ServerResponse) => boolean,
+): Promise<StreamingServer> {
+  const open = new Set<ServerResponse>();
+  const config = servingRuleset(ruleset);
+  const server = await startServer((request, response) => {
+    if (request.url !== "/sdk/stream") {
+      config(request, response);
+      return;
+    }
+    if (onStream?.(request, response)) {
+      return;
+    }
+    response.writeHead(200, { "content-type": "text/event-stream", "cache-control": "private, no-store" });
+    response.write(changed(ruleset().version));
+    open.add(response);
+    response.on("close", () => open.delete(response));
+  });
+  return {
+    ...server,
+    open,
+    streamRequests: () => server.requests.filter((request) => request.url === "/sdk/stream").length,
+    send: (text) => open.forEach((response) => response.write(text)),
+    announce: (version) => open.forEach((response) => response.write(changed(version))),
+    endStreams: () => open.forEach((response) => response.end()),
+  };
+}
+
+function changed(version: number): string {
+  return `event: ruleset-changed\nid: ${version}\ndata: {"environment":"production","version":${version}}\n\n`;
 }
 
 /** Waits for a condition without a fixed sleep; fails loudly if it never holds. */

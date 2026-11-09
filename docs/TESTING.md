@@ -142,6 +142,14 @@ ends at its lifetime ends without an error in the log, which is how the dispatch
 was found refused as anonymous (ADR-039). Implemented in `StreamEndToEndTest`, with heartbeats
 every second and streams lasting six; the registry's bookkeeping is `StreamRegistryTest`'s.
 
+The SDK's half runs against a real local server that streams: `sdk/test/stream.test.ts` asserts that
+an announced change is downloaded at once and not at the next poll, that nothing is polled while the
+stream is open and the ruleset current, that a stream the server ends is polled through and
+reopened, that a server with no stream or with a JSON answer is polled as before, that a refused
+stream waits out its `Retry-After`, that a silent one is dropped, that `close()` ends it, and that no
+event it cannot read throws or replaces the ruleset. `sdk/test/stream-parser.test.ts` holds the
+parser to the event-stream format, pieces split anywhere and every line ending included.
+
 ## Performance checks
 
 Not pass/fail gates, but recorded and committed, because a claim without a measurement is

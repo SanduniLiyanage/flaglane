@@ -209,8 +209,7 @@ here is a place they will disagree, silently and in production (E-011).
   entitled to read is reported as `FLAG_NOT_FOUND`, so the response does not disclose that it
   exists. Request and response schemas are in `docs/API.md`.
 **Not in v0.1** (E-039, ADR-027); built for v0.2 (E-045, ADR-039). The server's half, FR-SRV-003 and
-FR-STR-001 to FR-STR-004, is slice 5.1; until the SDK subscribes in slice 5.2, SDKs poll
-(FR-SDK-003).
+FR-STR-001 to FR-STR-004, is slice 5.1; the SDK's, FR-SDK-003, is slice 5.2 (E-046).
 
 - **FR-SRV-003** `GET /sdk/stream` opens a Server-Sent Events connection.
 - **FR-STR-001** Any change to a flag configuration in an environment publishes a change event to
@@ -228,11 +227,16 @@ FR-STR-001 to FR-STR-004, is slice 5.1; until the SDK subscribes in slice 5.2, S
 - **FR-SDK-001** `init()` fetches the ruleset, then resolves. It exposes a timeout after which it
   resolves anyway in fallback mode rather than blocking application startup.
 - **FR-SDK-002** `isOn(flagKey, context, fallback)` evaluates in process with no network call.
-- **FR-SDK-003** The SDK polls `GET /sdk/config` every five seconds, sending the ETag of the ruleset
-  it holds, and swaps in a changed ruleset atomically. An unchanged ruleset costs an empty 304
-  (E-039).
+- **FR-SDK-003** The SDK holds a stream, `GET /sdk/stream`, and when the stream announces a version
+  newer than the one it holds, downloads it with `GET /sdk/config` and the ETag of the ruleset it
+  holds. Whenever it has no stream, or lacks a version the stream announced, it polls
+  `GET /sdk/config` every five seconds with that ETag instead. It swaps in a changed ruleset
+  atomically; an unchanged ruleset costs an empty 304. Streaming can be turned off, leaving polling
+  alone (E-039, E-046).
 - **FR-SDK-004** If a poll fails, the SDK retries with exponential backoff and jitter, up to 30
-  seconds, honouring the `Retry-After` of a 503 or a 429, and serves the last ruleset meanwhile.
+  seconds, honouring the `Retry-After` of a 503 or a 429, and serves the last ruleset meanwhile. A
+  stream that fails, or is silent for 60 seconds, is reopened with the same backoff and never sooner
+  than its `Retry-After`; one the server ended after it worked is reopened within a second (E-046).
 - **FR-SDK-005** If the service is unreachable, the SDK serves the last known ruleset. With no
   ruleset ever fetched, it returns the caller-supplied fallback.
 - **FR-SDK-006** The SDK never throws from `isOn()`.
@@ -382,3 +386,4 @@ Corrections to this document, recorded rather than silently edited.
 | E-043 | Section 1, Scope; NFR-PER-003, NFR-REL-002 | Cache invalidation across instances, slice 4.8, moves to v0.2, and v0.1 runs one API instance. A second instance serves a stale ruleset until it rebuilds, at its reconciliation within about a minute, and learns of a key issued or revoked on another instance only when it restarts. | E-036 named the fix and scheduled it for v0.1. A shared invalidation channel is infrastructure to operate as well as code: a connection held open outside the pool and brought back when it drops, notifications lost while it is down, poolers that cannot carry `LISTEN`, and keys and rate limits to share as well as rulesets. One instance needs none of it (ADR-036). |
 | E-044 | NFR-SEC-006 | Behind a declared reverse proxy, the client address is read from `X-Forwarded-For`, and only when the connection comes from a proxy on a private address. Undeclared, it is the connecting peer's. | Behind a proxy every request came from the proxy's address, so all clients shared one allowance and one client could hold every other out of sign-in; believing the header from anyone would let each client name a new address per request (ADR-037). |
 | E-045 | FR-SRV-003, FR-STR-001 to FR-STR-004 | Built for v0.2. A stream's first event carries the version served when it opened; each event's id is that version; an event is sent after the ruleset cache has the new version, never at commit; a stream lasts at most 30 minutes before the server ends it; the heartbeat is every 25 seconds; a stream beyond a ceiling is refused with `Retry-After: 60`. | The requirements did not say when an event is sent, what an SDK reconnecting learns, or how long a stream lives. Sent at commit, an event could send an SDK for a ruleset the cache did not have yet; without a first event, a change made while an SDK reconnected waited for its next poll; with no lifetime, a connection stays on whichever instance or proxy it first reached (ADR-039). |
+| E-046 | FR-SDK-003, FR-SDK-004 | The SDK streams by default and downloads on an event; it polls whenever it has no stream or lacks an announced version, and not while its stream is open and it is up to date. A failed or silent stream is reopened with backoff; a server with no stream is polled. | E-039 made polling the SDK's only means for v0.1. With the stream built (E-045), an SDK that kept polling beside it would cost the server twelve requests a minute per process for nothing, and one that only streamed would stop learning of changes whenever a proxy, an outage or a v0.1 server took the stream away (ADR-040). |

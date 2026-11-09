@@ -991,3 +991,39 @@ reached; permitting every asynchronous dispatch on `/sdk/**` — it would have s
 authorizing nothing, where keeping the identity authorizes the same key twice; WebFlux — a second
 web stack in one application for one endpoint, when `SseEmitter` releases the request thread as
 FR-STR-004 requires.
+
+---
+
+## ADR-040 — The SDK streams by default, over `fetch`, and polls whenever it has no stream
+
+Slice 5.1 gave the server a stream (ADR-039); slice 5.2 is the SDK's half. ADR-004 designed the SDK
+to listen and to poll as its fallback. Four things were open. **Decision:** *On by default.* An SDK
+opens `GET /sdk/stream` after its first ruleset, and a `ruleset-changed` event naming a version newer
+than the one it holds makes it download that version at once, with the same conditional request
+polling uses. `streaming: false` turns it off. *Polling stays, and steps aside.* While a stream is
+open and the SDK holds every version the stream has announced, the poll timer fires without asking;
+whenever there is no stream, or the stream announced a version a download has not yet delivered, the
+SDK polls exactly as v0.1 did, with the same backoff. One refresh runs at a time, and a poll and an
+event arriving together cost one request. *Over `fetch`, not `EventSource`.* `EventSource` cannot send
+an `Authorization` header, and the key must not travel in a URL where logs keep it; `fetch` can, in
+browsers and in Node 20 alike, so the SDK reads the stream from a `fetch` body with a small parser of
+the standard's event-stream format, and gains no dependency. *Reconnecting.* A stream the server
+ended after it worked, as at its 30-minute lifetime, is replaced within a second, jittered. A stream
+that fails, that ends before its first event, or that is silent for 60 seconds, twice the longest
+heartbeat FR-STR-002 allows, is retried with the polling backoff and never sooner than a
+`Retry-After`, polling meanwhile. A server with no stream, a 404 or an answer that is not an event
+stream, as a v0.1 server gives, is polled for the rest of the client's life and said so once.
+**Consequences:** a change reaches an SDK holding a stream in the time it takes to send an event and
+download a ruleset, not up to five seconds; an SDK that has a stream sends no polls at all, so a
+fleet costs the server one stream each instead of twelve requests a minute. In Node an open stream,
+like any open connection, keeps the process running, which was measured before this was decided: a
+short-lived script that does not call `close()` no longer exits by itself, and should either call it
+or pass `streaming: false`. ADR-026's promise holds for what it named, the SDK's timers, which are
+all still unreferenced. A browser tab with a client key holds a stream too, and FR-STR-004's ceiling
+of 500 streams a key decides how many tabs stream at once; the rest poll, as every tab did in v0.1.
+**Rejected:** off by default — the kill switch is the reason to stream, and an SDK that has to be
+asked to deliver it in under a second would mostly not be asked; `EventSource` with the key in the
+query string — a credential in every access log between the browser and Flaglane; polling at the
+usual rate beside the stream — twelve requests a minute per process for nothing while the stream
+works; a Node-only transport such as `node:http`, whose socket could be unreferenced — a second
+implementation of the stream for one runtime, and a bundler problem for every browser build.

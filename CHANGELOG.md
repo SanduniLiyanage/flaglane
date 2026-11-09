@@ -13,8 +13,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   of its environment's ruleset to download. The first event is the version served when the stream
   opened; a comment every 25 seconds keeps it open through idle proxies; streams last 30 minutes,
   end when their key is revoked, and are limited to 500 a key and 1,000 an environment
-  (`FLAGLANE_STREAM_MAX_PER_KEY`, `FLAGLANE_STREAM_MAX_PER_ENVIRONMENT`). The SDK does not use it
-  yet; it polls as in 0.1.0.
+  (`FLAGLANE_STREAM_MAX_PER_KEY`, `FLAGLANE_STREAM_MAX_PER_ENVIRONMENT`).
+- The SDK listens on the stream and downloads a changed ruleset the moment it is announced. While
+  its stream is open it does not poll; whenever there is none, as against a 0.1 server, it polls
+  every five seconds as before. `streaming: false` polls only; `client.streaming` says whether a
+  stream is open.
+
+### Changed
+
+- In Node, an open stream keeps the process running, as any open connection does. A short-lived
+  script that creates a client should call `close()` when it is done, or pass `streaming: false`.
 
 ## [0.1.0] - 2026-11-09
 

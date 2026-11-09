@@ -33,9 +33,15 @@ if (flags.isOn("new-checkout", { key: user.id, country: user.country }, false)) 
 - **The fallback is yours.** The third argument is what a flag answers when it cannot be evaluated:
   before the first ruleset arrives, for a flag that does not exist, or for one your key may not
   read. Choose the value that is safe if Flaglane is unreachable. It defaults to `false`.
-- **Changes arrive by polling.** Every five seconds the SDK asks whether the ruleset changed, with
-  the ETag of the one it has; an unchanged ruleset costs an empty `304`. A change is in effect
-  within about five seconds.
+- **Changes arrive within moments.** From 0.2, the SDK holds a stream to Flaglane, which tells it
+  when the ruleset changes, and it downloads the new one at once. Whenever there is no stream — a
+  proxy closed it, Flaglane is restarting, or the server is 0.1 and has none — the SDK asks every
+  five seconds instead, with the ETag of the ruleset it has, so an unchanged ruleset costs an empty
+  `304`. While the stream works, it does not poll at all.
+- **In Node, call `close()` when the process should exit.** An open stream, like any open
+  connection, keeps a Node process running. A server never notices; a short-lived script that
+  creates a client should call `close()` when it is done, or pass `streaming: false`. The SDK's
+  timers never keep a process alive on their own.
 - **If Flaglane goes away, nothing breaks.** The SDK keeps answering from the last ruleset it had,
   retries with exponential backoff and jitter up to 30 seconds, and picks up changes again when the
   server is back. A bad response never replaces a good ruleset.
@@ -75,17 +81,21 @@ rule on an attribute instead.
 | `pollIntervalMs` | `5000` | How often to check for changes |
 | `maxBackoffMs` | `30000` | The longest wait between attempts while Flaglane is unreachable |
 | `requestTimeoutMs` | `10000` | How long one request may take |
+| `streaming` | `true` | Whether to hold a stream for changes. `false` polls only, as 0.1 did |
+| `streamIdleTimeoutMs` | `60000` | How long a stream may stay silent before the SDK reconnects; Flaglane sends something at least every 30 seconds |
 | `fetch` | `globalThis.fetch` | A `fetch` to use instead |
 | `logger` | `console.warn` | Where to report problems; it never receives your key |
 
 `evaluate(flagKey, context, fallback)` answers like `isOn` with the reason as well: `OFF`,
 `OVERRIDE`, `RULE_MATCH`, `ROLLOUT`, `FALLTHROUGH`, `FLAG_NOT_FOUND` or `ERROR`. `ready` says
-whether a ruleset has arrived, `version` which one is in use, and `close()` stops polling.
+whether a ruleset has arrived, `version` which one is in use, `streaming` whether a stream is open
+now, and `close()` stops polling and ends the stream.
 
 ## Requirements
 
-Node 20 or later, or any current browser: the SDK uses only `fetch`, `TextEncoder` and
-`AbortController`, and has no dependencies. ES modules only.
+Node 20 or later, or any current browser: the SDK uses only `fetch`, `TextEncoder`, `TextDecoder`
+and `AbortController`, and has no dependencies. It reads the stream from a `fetch` body rather than
+with `EventSource`, which cannot send the key in a header. ES modules only.
 
 ## Correctness
 

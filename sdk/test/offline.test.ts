@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { FlaglaneClient } from "../src/index.js";
 import { type ParityFixture, fixture } from "./fixtures.js";
-import { type TestServer, servingRuleset, startServer, unreachableUrl, waitFor } from "./server.js";
+import { rulesetRequests, servingRuleset, startServer, type TestServer, unreachableUrl, waitFor } from "./server.js";
 
 /**
  * Suite 8 — SDK offline behaviour (FR-SDK-005, FR-SDK-006, NFR-REL-001). Flaglane being down must
@@ -120,8 +120,8 @@ describe("suite 8: offline behaviour", () => {
     const client = await init({ sdkKey: "flg_srv_test", baseUrl: server.url, pollIntervalMs: 20 });
 
     failing = true;
-    const before = server.requests.length;
-    await waitFor(() => server.requests.length > before);
+    const before = rulesetRequests(server).length;
+    await waitFor(() => rulesetRequests(server).length > before);
 
     expect(client.version).toBe(7);
     expect(client.isOn("rollout-30", { key: "user-1" })).toBe(true);
@@ -131,7 +131,9 @@ describe("suite 8: offline behaviour", () => {
     let limited = false;
     const answeredAt: number[] = [];
     const server = await serve((request, response) => {
-      answeredAt.push(performance.now());
+      if (request.url === "/sdk/config") {
+        answeredAt.push(performance.now());
+      }
       if (limited) {
         response.statusCode = 429;
         response.setHeader("retry-after", "1");
@@ -143,8 +145,8 @@ describe("suite 8: offline behaviour", () => {
     const client = await init({ sdkKey: "flg_srv_test", baseUrl: server.url, pollIntervalMs: 20 });
 
     limited = true;
-    const before = server.requests.length;
-    await waitFor(() => server.requests.length > before + 1, 5_000);
+    const before = rulesetRequests(server).length;
+    await waitFor(() => rulesetRequests(server).length > before + 1, 5_000);
     const refusedAt = answeredAt[before] ?? 0;
     const retriedAt = answeredAt[before + 1] ?? 0;
 
@@ -166,8 +168,8 @@ describe("suite 8: offline behaviour", () => {
     const client = await init({ sdkKey: "flg_srv_test", baseUrl: server.url, pollIntervalMs: 20 });
 
     garbage = true;
-    const before = server.requests.length;
-    await waitFor(() => server.requests.length > before + 1);
+    const before = rulesetRequests(server).length;
+    await waitFor(() => rulesetRequests(server).length > before + 1);
 
     expect(client.version).toBe(7);
     expect(client.isOn("rollout-30", { key: "user-1" })).toBe(true);

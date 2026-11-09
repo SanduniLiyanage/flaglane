@@ -39,9 +39,10 @@ memory, and re-checks it every five seconds. Consequences:
   (FR-KEY-005) and no user overrides at all (FR-KEY-008). Filtering by flag is not enough: an
   override's user key is a real user identifier, and shipping the override list tells every
   browser which specific people you have been targeting.
-- Changes are not instant. In v0.1 the SDK polls with the ETag of the ruleset it holds, so a change
-  arrives within about five seconds and an unchanged ruleset costs an empty 304; the stream that
-  would make it sub-second was cut for v0.1 (ADR-027, section 5).
+- Changes are not instant, but from v0.2 they are close. The SDK holds a stream that announces each
+  new version, and downloads it at once; without a stream it polls with the ETag of the ruleset it
+  holds, so a change arrives within about five seconds and an unchanged ruleset costs an empty 304.
+  v0.1's SDK only polls (ADR-027, ADR-040, section 5).
 
 `POST /sdk/evaluate` exists for thin clients that cannot hold a ruleset, and runs the identical
 engine server-side.
@@ -182,8 +183,11 @@ opened, a comment every 25 seconds keeps it alive through idle proxies, and it l
 before the SDK reconnects. Streams use `SseEmitter`, so none occupies a servlet thread, under a
 ceiling per key and per environment (FR-STR-004); a revoked key's streams end before the revoke
 returns, and at shutdown every stream ends before the web server's graceful shutdown begins. The
-SDK's subscription is slice 5.2; until it lands, SDKs poll as in v0.1, and polling stays the
-fallback after it does.
+SDK listens (ADR-040): an event naming a version newer than the one it holds makes it download that
+version at once, with the conditional request polling uses. While its stream is open and it holds
+every version announced, it does not poll; whenever it has no stream, or a download has not yet
+delivered an announced version, it polls as v0.1 did. A stream silent for 60 seconds is taken for
+dead. A server with no stream is polled for good.
 
 ### One instance, and why that is written down
 
@@ -238,6 +242,7 @@ Isolation is structural:
 | A key over its rate limit | 429 with `Retry-After`, decided before the request is handled; a `304` costs a tenth of any other answer (ADR-035). The SDK keeps its last ruleset and waits |
 | Flaglane unreachable from SDK | Last known ruleset, then code-level fallback |
 | A poll fails | Last ruleset kept; retried with exponential backoff and jitter up to 30 s, or after the `Retry-After` of a 503 or a 429 |
+| The stream drops, goes quiet or is refused | The SDK polls meanwhile and reopens it: within a second after the server ended it, otherwise with the same backoff and never before its `Retry-After` (ADR-040) |
 
 The last two are the product's central promise. Everything else in this document is negotiable.
 

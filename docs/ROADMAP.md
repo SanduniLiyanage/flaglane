@@ -46,6 +46,7 @@ Status is updated as slices merge. Anything not listed here is not in v0.1.
 | 4.8 Invalidation across instances | **Moved to v0.2** on 2026-11-09 (ADR-036, E-043). v0.1 runs exactly one API instance and says so in the README, `docs/ARCHITECTURE.md`, `SECURITY.md` and the SRS. The channel would have to carry key issues and revokes as well as rulesets, and hold a connection outside the pool that poolers in transaction mode cannot carry; one instance needs none of it |
 | 4.11 Release | Done. v0.1.0 tagged on 2026-11-09: the image on GitHub's container registry for `linux/amd64` and `linux/arm64`, the SDK on npm, and the changelog's 0.1.0 section as the release notes. The published image's provenance names the tagged commit on both platforms, and the release workflow now runs the published image on an x86-64 and an Arm runner after publishing, as anyone would pull it. The npm placeholder `0.0.0-stage` is deprecated. How to cut the next one is in `docs/WORKFLOW.md` |
 | 5.1 Stream endpoint | Done, the server's half of streaming (ADR-039, E-045). `GET /sdk/stream` sends `ruleset-changed` with the version once the cache has it, to the environment's streams only, from one writer thread; the first event is the version served at opening; a comment every 25 seconds; streams last 30 minutes; 500 a key and 1,000 an environment, then 429 with `Retry-After: 60`; a revoked key's streams end before the revoke returns; every stream ends before graceful shutdown. Its end-to-end test found the dispatch that ends a stream being refused as anonymous, an error logged per stream; the key's identity is now kept on the request |
+| 5.2 The SDK on the stream | Done (ADR-040, E-046). On by default: an event naming a newer version downloads it at once; no polling while the stream is open and up to date; polling as in v0.1 whenever there is no stream. Reads the stream from a `fetch` body with its own parser, so the key stays in a header and nothing is added. A stream silent for 60 seconds is dropped; a failed one is reopened with backoff and never before its `Retry-After`; a server with no stream is polled for good. Measured first: an open stream keeps a Node process running, so a short-lived script calls `close()` or passes `streaming: false`. 17 new tests, the polling tests now counting ruleset requests only |
 | Everything else | Not started |
 
 ## Principles
@@ -218,11 +219,11 @@ lifted as ADR-036 set out.
 | Slice | Contents | Days | Requirements |
 | --- | --- | --- | --- |
 | 5.1 | `GET /sdk/stream`: `SseEmitter` registry, an event after each swap, heartbeat, ceilings, revocation closes streams, a lifetime, shutdown. **Done** | 1.5 | FR-SRV-003, FR-STR-001 to FR-STR-004 |
-| 5.2 | The SDK subscribes over `fetch`, with no `EventSource` and no dependency: it downloads on an event, reconnects with backoff and jitter, and polls whenever it has no stream; suite 8 covers a stream that drops | 1 | FR-SDK-003, FR-SDK-004 |
+| 5.2 | The SDK subscribes over `fetch`, with no `EventSource` and no dependency: it downloads on an event, reconnects with backoff and jitter, and polls whenever it has no stream; suite 8 covers a stream that drops. **Done** | 1 | FR-SDK-003, FR-SDK-004 |
 | 5.3 | The demo shop shows whether its SDK streams; gate 7 checks a change within a second, and that the shop keeps working with the stream refused and with the API stopped | 0.5 | — |
 | 5.4 | Propagation benchmark under streaming; NFR-PER-003's sub-second target restored by erratum | 0.5 | NFR-PER-003 |
 | 5.5 | Invalidation across instances (4.8): rulesets, keys and streams, over PostgreSQL `LISTEN`/`NOTIFY` on a direct connection that is brought back when it drops, with the minute's reconciliation kept as the backstop; rate limits stated per instance | 2 | NFR-PER-003, NFR-REL-002 |
-| 5.6 | Release v0.2.0 | 0.5 | — |
+| 5.6 | Release v0.2.0, with the README describing streaming and the SDK at 0.2.0 | 0.5 | — |
 
 Exit criteria: moving a rollout changes the demo shop within one second while its SDK holds a stream;
 with the stream refused, and with the API stopped, the shop carries on as in v0.1. Two instances
