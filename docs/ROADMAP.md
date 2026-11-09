@@ -42,6 +42,7 @@ Status is updated as slices merge. Anything not listed here is not in v0.1.
 | 3.7 Key management | Done. The plaintext key is shown in the one response that carries it, with a copy control, and leaving while it is shown asks first; afterwards the list shows the prefix only. Revoking says what it does before it is done: refused from the moment it returns, applications already running keep their last ruleset without further changes, one started later gets its code's defaults |
 | 3.8 Audit trail view | Done, over 3.10's read API: newest first, fifty at a time by keyset, narrowed to an environment or a flag through the address. Entries name the actor, environment and flag, a deleted environment by the key it had. Recorded states are shown as recorded, a rollout in basis points with the unit named and the whole percentage beside it where it is one (ADR-034). **Milestone 3's exit criterion holds:** a flag created, targeted with an override and two rules, turned on and rolled out to 30% entirely through the interface, checked in a browser against the built image, with each of its changes in the trail and the ruleset its key downloads carrying exactly what the interface set |
 | 4.7 Rate limiting per key | Done, with the token bucket the sign-in limit brought (ADR-035). 600 requests a minute per key by default, `FLAGLANE_SDK_RATE_LIMIT_PER_MINUTE` to change it, charged before the handler runs so a refused request reads no body; a `304` costs a tenth, so one key serves 500 SDKs polling every five seconds (E-042). 429 with `Retry-After`, which the SDK now waits out as it does a 503's. A revoked key's bucket is dropped when the revoke commits, and refilled buckets every minute |
+| 4.8 Invalidation across instances | **Moved to v0.2** on 2026-11-09 (ADR-036, E-043). v0.1 runs exactly one API instance and says so in the README, `docs/ARCHITECTURE.md`, `SECURITY.md` and the SRS. The channel would have to carry key issues and revokes as well as rulesets, and hold a connection outside the pool that poolers in transaction mode cannot carry; one instance needs none of it |
 | Everything else | Not started |
 
 ## Principles
@@ -72,7 +73,7 @@ before:
 - the slices marked ◇ moving to v0.2. They are chosen so that nothing on the *never cut* list
   is at risk: `4.7` rate limiting, `4.8` multi-instance propagation, `4.10` the propagation
   benchmark. `3.9` database-level audit enforcement was one of them and has since landed with
-  slice 1.2.
+  slice 1.2. `4.7` and `4.10` landed in v0.1; `4.8` moved to v0.2 (ADR-036).
 
 A four-week version of this plan existed and was not true. Milestone 1 alone — ten slices
 including JWT authentication and a public deployment with managed PostgreSQL — is two weeks, and
@@ -179,15 +180,16 @@ Goal: a real application consumes it, and Flaglane going down does not matter.
 | 4.5 | Offline behaviour and never-throws; suite 8 | 0.5 | FR-SDK-005, FR-SDK-006 |
 | 4.6 | Parity suite against shared fixtures; suite 9 | 1 | FR-SDK-007 |
 | 4.7 ◇ | Rate limiting per key | 1 | NFR-SEC-005 |
-| 4.8 ◇ | `LISTEN`/`NOTIFY` cache invalidation across instances | 1 | NFR-PER-003, NFR-REL-002 |
+| 4.8 ◇ | ~~`LISTEN`/`NOTIFY` cache invalidation across instances~~ Moved to v0.2 (ADR-036) | 1 | NFR-PER-003, NFR-REL-002 |
 | 4.9 | `examples/demo-shop`: a small storefront using the SDK | 1 | — |
 | 4.10 ◇ | Propagation benchmark: a change to SDK pickup under polling; `docs/BENCHMARKS.md` completed | 0.5 | NFR-PER-003 |
 | 4.11 | Release: v0.1.0 tag, CHANGELOG updated | 0.5 | — |
 
-Slice 4.8 is what lifts the single-instance constraint recorded in ADR-013. Until it lands, a
-second instance runs a stale cache and the SDKs polling it never see a change made on the other,
-so v0.1 ships as a single instance and says so in the README, in `docs/ARCHITECTURE.md` and in
-the ADR.
+Slice 4.8 is what lifts the single-instance constraint recorded in ADR-013, and it has moved to
+v0.2 (ADR-036). v0.1 ships as a single instance and says so in the README, in
+`docs/ARCHITECTURE.md` and in the SRS (E-043). A second instance, run anyway, serves a stale
+ruleset until its next reconciliation, within about a minute, and keeps accepting a key revoked on
+the other until it restarts. No suite tested 4.8, so milestone 4's exit criteria are unchanged.
 
 Exit criteria: moving the rollout — in the dashboard, or through the management API until the
 dashboard exists — visibly changes the demo shop **within five seconds**. Stopping the API leaves the
@@ -224,6 +226,8 @@ numbers. Those are the claims the project rests on.
 
 Not commitments; a record of what was considered and deferred.
 
+- Ruleset and key invalidation across instances over PostgreSQL `LISTEN`/`NOTIFY`, slice 4.8,
+  planned for v0.2 (ADR-036)
 - Multivariate flags (string, number, JSON variations)
 - A Java SDK
 - An OpenFeature provider, so applications already using the standard can point at Flaglane

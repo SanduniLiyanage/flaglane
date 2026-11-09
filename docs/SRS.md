@@ -11,8 +11,9 @@ runtime.
 
 Out of scope for v0.x: experimentation statistics, multivariate flags, RBAC, SSO, approval
 workflows, scheduled changes, SDKs other than TypeScript, regular-expression targeting operators
-(E-009), revocable sessions (E-028), running more than one API instance (ADR-013), and, for v0.1,
-streaming changes to SDKs over Server-Sent Events: SDKs poll every five seconds instead (E-039).
+(E-009) and revocable sessions (E-028). Out of scope for v0.1: running more than one API instance,
+since nothing tells one instance of a change made on another (ADR-013, E-043), and streaming changes
+to SDKs over Server-Sent Events: SDKs poll every five seconds instead (E-039).
 
 ## 2. Actors
 
@@ -275,9 +276,10 @@ will be built after v0.1; until then no `/sdk/stream` exists and SDKs poll (FR-S
   cannot approach it — and a measurement that cannot fail is not evidence.
 - **NFR-PER-002** `GET /sdk/config`: p99 under 50 ms served from cache, measured locally.
 - **NFR-PER-003** A change reaches running SDKs within the poll interval, five seconds, plus one
-  request, on the single-instance deployment v0.x supports (ADR-013). Under a second needs the
-  stream, which is not in v0.1 (E-039). Across instances this does not hold at all until
-  `LISTEN`/`NOTIFY` lands in slice 4.8: a write on one instance never reaches another.
+  request, on the single-instance deployment v0.1 supports (ADR-013). Under a second needs the
+  stream, which is not in v0.1 (E-039). Across instances it does not hold: v0.1 has no channel
+  between instances, and a write handled by one reaches another only when that one next reconciles
+  with the database, within about a minute (E-043).
 - **NFR-PER-004** No `/sdk/**` request performs a database query on the request path. The engine
   is a pure function over an in-memory ruleset; key authentication is served from the in-memory key
   cache (FR-KEY-007); `last_used_at` is flushed asynchronously (FR-KEY-006). "Evaluation path"
@@ -310,9 +312,11 @@ will be built after v0.1; until then no `/sdk/stream` exists and SDKs poll (FR-S
 ### Reliability
 - **NFR-REL-001** Service unavailability degrades applications to last-known-good, then to
   code-level defaults. It never causes an application error.
-- **NFR-REL-002** The in-memory cache rebuilds from the database on startup and after any write
-  handled by that instance. Writes handled elsewhere do not invalidate it, which is why v0.x runs
-  as a single instance (ADR-013).
+- **NFR-REL-002** The in-memory cache rebuilds from the database on startup, after any write
+  handled by that instance, and once a minute for any environment whose version differs from the
+  database's. A write handled elsewhere reaches it only through that minute's reconciliation, and a
+  key issued or revoked elsewhere only through a restart, which is why v0.1 runs as a single
+  instance (ADR-013, E-043).
 - **NFR-REL-003** Liveness (`/actuator/health/liveness`) ignores the database entirely. Readiness
   (`/actuator/health/readiness`) requires the ruleset cache only. Database health is reported as a
   separate indicator on `/actuator/health` and gates nothing. A database outage that made the
@@ -372,3 +376,4 @@ Corrections to this document, recorded rather than silently edited.
 | E-040 | NFR-SEC-006 (new) | Registration and sign-in are rate limited per client address, before any password is hashed. | Slice 1.10 exposes both endpoints publicly, and each attempt costs a bcrypt hash. No requirement limited them: NFR-SEC-005 covers the serving API only (ADR-029). |
 | E-041 | FR-AUD-003 | The trail is read per project, narrowed by an environment or flag key, and each entry names its actor, environment and flag; an environment deleted since keeps the key it had. Recorded states are returned as recorded. | `docs/API.md` already specified one project endpoint, and project creation, environment deletion and key events belong to no flag. Entries that gave ids would have been unreadable to the dashboard, which names everything by key (ADR-030). |
 | E-042 | NFR-SEC-005, FR-SDK-004 | A `304` counts as a tenth of a request, so the default of 600 a minute serves 500 polling SDK processes per key; the limit is applied before the request is handled; a revoked key's bucket is dropped. The SDK waits out a 429's `Retry-After` as it does a 503's. | E-039 left the limit to be sized for polling fleets when it was built: counted as a whole request each, a `304` — the commonest answer by far, and headers only — let fifty processes polling one key reach the default. And an SDK that ignored a 429's `Retry-After` asked again on its backoff schedule, sooner than the server had said it would answer (ADR-035). |
+| E-043 | Section 1, Scope; NFR-PER-003, NFR-REL-002 | Cache invalidation across instances, slice 4.8, moves to v0.2, and v0.1 runs one API instance. A second instance serves a stale ruleset until it rebuilds, at its reconciliation within about a minute, and learns of a key issued or revoked on another instance only when it restarts. | E-036 named the fix and scheduled it for v0.1. A shared invalidation channel is infrastructure to operate as well as code: a connection held open outside the pool and brought back when it drops, notifications lost while it is down, poolers that cannot carry `LISTEN`, and keys and rate limits to share as well as rulesets. One instance needs none of it (ADR-036). |

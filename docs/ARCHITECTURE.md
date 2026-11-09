@@ -178,17 +178,24 @@ and per environment (FR-STR-004), and polling stays as its fallback.
 
 ### One instance, and why that is written down
 
-**The cache rebuild is in process** — as the stream registry will be. Run two instances behind a
-load balancer and a write on instance A is not seen by instance B until B's once-a-minute
-reconciliation compares versions with the database; until then every SDK polling B keeps getting
-the old ruleset. For up to a minute, half the traffic would get a kill switch that has not killed,
-silently, in a system that otherwise looks healthy.
+**The ruleset cache, the key cache and the rate limits are in process** — as the stream registry
+will be. Run two instances behind a load balancer and a write on instance A is not seen by
+instance B until B's once-a-minute reconciliation compares versions with the database; until then
+every SDK polling B keeps getting the old ruleset. For up to a minute, half the traffic would get a
+kill switch that has not killed, silently, in a system that otherwise looks healthy. Keys are
+worse: B learns of a key issued or revoked on A only when B restarts, so a key revoked on A keeps
+working against B. And each instance would give every key and every address an allowance of its
+own.
 
-So v0.x is a single instance, deliberately, and it is recorded in ADR-013 rather than left as a
-property nobody stated. The intended fix is PostgreSQL `LISTEN`/`NOTIFY` on commit — no new
-dependency, and the database is already in the transaction that needs observing — scheduled as
-roadmap slice 4.8. Until it lands, do not scale this horizontally; the failure mode is stale flags
-rather than an error, which is the worst kind to debug.
+So v0.1 is a single instance, deliberately, recorded in ADR-013 and ADR-036 rather than left as a
+property nobody stated. The intended fix is PostgreSQL `LISTEN`/`NOTIFY` on commit, carrying key
+changes as well as ruleset changes — no new dependency, and the database is already in the
+transaction that needs observing. It is planned for v0.2, not v0.1, because the channel is
+something to operate as well as code: a listening connection held outside the pool and brought back
+when it drops, notifications lost while it is away, and poolers in transaction mode that cannot
+carry `LISTEN` at all (ADR-036). Until it lands, do not scale this horizontally, and do not run an
+old and a new instance side by side during a deploy. The failure mode is stale flags and a revoked
+key that still works, not an error, which is the worst kind to debug.
 
 ## 6. Tenant isolation
 

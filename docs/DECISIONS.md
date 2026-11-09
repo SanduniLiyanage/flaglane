@@ -285,6 +285,10 @@ system, and it fails hardest at the moment the kill switch is being used. Redis 
 piece of infrastructure for every self-hoster, to do what the database can already do. Sticky
 sessions — does not help; the problem is the write, not the reader.
 
+**Amended by ADR-036.** The fix above is not in v0.1: slice 4.8 moved to v0.2. Since this entry was
+written, the cache reconciles with the database once a minute, so a second instance is stale for up
+to a minute rather than until it restarts; its key cache still learns of keys only at startup.
+
 ---
 
 ## ADR-014 — Java 25 supersedes ADR-001's version choice
@@ -848,3 +852,31 @@ be charged; a second limit per client address for client keys — closer to what
 but a table of addresses per key, behind proxies that hide them, for a ceiling the setting already
 moves; separate settings per key type — two numbers whose right values depend on the same fleet;
 Bucket4j — ADR-029's reasons.
+
+---
+
+## ADR-036 — Cache invalidation across instances waits for v0.2
+
+ADR-013 made v0.x a single instance and named what would lift it: PostgreSQL `LISTEN`/`NOTIFY` on
+commit, "roughly forty lines", scheduled as slice 4.8 in v0.1. **Decision:** slice 4.8 moves to
+v0.2, and v0.1 runs exactly one API instance. The forty lines are the code; the channel is
+something to operate. A listener holds a database connection of its own, open for as long as the
+instance runs and outside the pool, and has to notice when it drops and come back. A notification
+sent while it is away is lost rather than queued, so the minute's reconciliation stays as the
+backstop and the guarantee is only as good as the reconnection. A pooler in transaction mode, which
+several managed PostgreSQL services offer as their pooled endpoint, cannot carry `LISTEN` at all, so
+a deployment has to provide a direct connection besides the pooled one, and whoever runs it has to
+know that. And the ruleset is not the only thing each instance holds: the key cache would have to
+hear of every issue and revoke as well, or a key revoked on one instance keeps working on another,
+and the rate limits of ADR-029 and ADR-035 would become allowances that multiply with the number of
+instances. One instance needs none of this, and one instance is what v0.1 is. **Consequences:**
+v0.1 says it runs one instance, in the README, `docs/ARCHITECTURE.md` and the SRS (E-043), and its
+guarantees are true for that deployment. A second instance, run anyway, serves a stale ruleset until
+it rebuilds — within about a minute, at its reconciliation, for a change handled by the other — and
+does not learn of a key issued or revoked on the other until it restarts, so a key revoked there
+keeps working. A deploy that runs the old and the new instance side by side has the same gaps for as
+long as they overlap. **Rejected:** building 4.8 for v0.1 anyway — the channel's failure modes would
+ship tested only in the deployment shape v0.1 does not support; a shorter reconciliation as the
+mechanism between instances — more load on the database for a stale window that is still not zero,
+and nothing for keys; Redis pub/sub — ADR-013's reason, a second piece of infrastructure for every
+self-hoster.
