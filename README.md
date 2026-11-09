@@ -1,5 +1,10 @@
 # Flaglane
 
+[![CI](https://github.com/SanduniLiyanage/flaglane/actions/workflows/ci.yml/badge.svg)](https://github.com/SanduniLiyanage/flaglane/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/SanduniLiyanage/flaglane)](https://github.com/SanduniLiyanage/flaglane/releases/latest)
+[![npm: @flaglane/sdk](https://img.shields.io/npm/v/@flaglane/sdk)](https://www.npmjs.com/package/@flaglane/sdk)
+[![Licence: Apache 2.0](https://img.shields.io/badge/licence-Apache%202.0-blue.svg)](LICENSE)
+
 Feature flags and remote configuration for teams that want to ship code and decide later who sees it.
 
 Flaglane lets you deploy a feature turned off, switch it on for a few users, roll it out to a
