@@ -3,6 +3,18 @@
   "version": "0.1.0",
   "description": "Flaglane feature flags, evaluated in process from a ruleset the Flaglane server serves. Keeps answering when Flaglane is down.",
   "license": "Apache-2.0",
+  "keywords": [
+    "feature-flags",
+    "feature-toggles",
+    "remote-config",
+    "rollout",
+    "kill-switch",
+    "flaglane"
+  ],
+  "homepage": "https://github.com/SanduniLiyanage/flaglane/tree/main/sdk#readme",
+  "bugs": {
+    "url": "https://github.com/SanduniLiyanage/flaglane/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
