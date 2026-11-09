@@ -85,7 +85,10 @@ from that commit.
 3. Run the release workflow on `main` by hand (Actions, Release, Run workflow). It builds the image
    for both platforms and publishes nothing. Tag only once it passes.
 4. `git tag --annotate vX.Y.Z --message "Flaglane X.Y.Z"`, then push the tag. The workflow
-   publishes `ghcr.io/sanduniliyanage/flaglane` (ADR-038).
+   publishes `ghcr.io/sanduniliyanage/flaglane` (ADR-038), then pulls the published image back and
+   runs it against PostgreSQL on an x86-64 and an Arm runner: healthy, reporting the version, serving
+   the dashboard, registering and signing in. Run the workflow by hand with a version to repeat that
+   check for a release already published.
 5. Publish the SDK from `sdk/` with `npm publish`. npm stages the version rather than publishing
    it, and an owner of the `flaglane` organisation approves it on npmjs.com, under Staged
    Packages, with two-factor authentication. A version number can be used once, ever, even if the

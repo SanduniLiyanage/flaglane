@@ -3,14 +3,23 @@
 # Each platform is built on a runner of its own architecture rather than under emulation, pushed by
 # digest, and the two are then joined into one image tagged with the version (0.1.0), its minor
 # line (0.1) and latest (ADR-038). BuildKit attaches a provenance attestation and an SBOM to each
-# platform's image. Run by hand, the workflow builds both platforms and publishes nothing, which is
-# how a change to the Dockerfile or to this file is tried before a tag depends on it.
+# platform's image. The published image is then pulled back and run on each architecture against
+# PostgreSQL, as a user would get it.
+#
+# Run by hand with no version, the workflow builds both platforms and publishes nothing, which is
+# how a change to the Dockerfile or to this file is tried before a tag depends on it. Run by hand
+# with a version, it builds nothing and checks that published version again.
 name: Release
 
 on:
   push:
     tags: ["v*.*.*"]
   workflow_dispatch:
+    inputs:
+      version:
+        description: "A published version to check again, such as 0.1.0. Leave empty to build without publishing."
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -26,6 +35,7 @@ env:
 jobs:
   build:
     name: Image for ${{ matrix.platform }}
+    if: github.event_name == 'push' || inputs.version == ''
     strategy:
       fail-fast: true
       matrix:
@@ -144,3 +154,78 @@ jobs:
 
       - name: Show what was published
         run: docker buildx imagetools inspect "$IMAGE:${{ steps.meta.outputs.version }}"
+
+  verify:
+    name: Published image runs on ${{ matrix.platform }}
+    needs: publish
+    # After a publish, or by hand for a version already published.
+    if: >-
+      always() && (needs.publish.result == 'success'
+      || (github.event_name == 'workflow_dispatch' && inputs.version != ''))
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            arch: amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      REQUESTED: ${{ inputs.version }}
+    steps:
+      # For the Compose file and the role script, as a user starting the stack has them.
+      - uses: actions/checkout@v7
+
+      - name: Name the version and the image
+        run: |
+          version="${REQUESTED:-${GITHUB_REF_NAME#v}}"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}:$version" >> "$GITHUB_ENV"
+
+      # The published image in place of a build, pulled anonymously, as anyone would pull it.
+      # Credentials made for this run and discarded with the runner.
+      - name: Start PostgreSQL and the published image, and wait until they are ready
+        run: |
+          umask 077
+          {
+            echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)"
+            echo "FLAGLANE_DB_MIGRATOR_PASSWORD=$(openssl rand -hex 24)"
+            echo "FLAGLANE_DB_APP_PASSWORD=$(openssl rand -hex 24)"
+            echo "FLAGLANE_JWT_SECRET=$(openssl rand -base64 48)"
+          } > .env
+          printf 'services:\n  api:\n    image: %s\n    pull_policy: always\n' "$IMAGE" > published.yml
+          docker compose -f docker-compose.yml -f published.yml up --detach --no-build --wait --wait-timeout 180
+
+      - name: The image is the release, for this architecture, and it works
+        run: |
+          set -euo pipefail
+          arch=$(docker image inspect --format '{{.Architecture}}' "$IMAGE")
+          echo "architecture: $arch"
+          test "$arch" = '${{ matrix.arch }}'
+          api=$(curl --silent --fail http://localhost:8080/v3/api-docs | jq -r '.info.version')
+          echo "API version: $api"
+          test "$api" = "$VERSION"
+          curl --silent --fail --output /dev/null http://localhost:8080/sign-in
+          email="release-check@example.com"
+          password="$(openssl rand -hex 16)"
+          body=$(jq -n --arg email "$email" --arg password "$password" '{email: $email, password: $password}')
+          status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' --data "$body" http://localhost:8080/api/auth/register)
+          echo "register: $status"
+          test "$status" = 201
+          token=$(curl --silent --fail --header 'Content-Type: application/json' --data "$body" \
+            http://localhost:8080/api/auth/login | jq -r '.accessToken')
+          status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --header "Authorization: Bearer $token" http://localhost:8080/api/projects)
+          echo "projects with the token: $status"
+          test "$status" = 200
+
+      - name: Logs
+        if: failure()
+        run: docker compose -f docker-compose.yml -f published.yml logs
