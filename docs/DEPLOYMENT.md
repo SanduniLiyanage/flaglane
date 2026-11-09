@@ -6,17 +6,19 @@ database, for trying it out.
 
 ## What you run
 
-- **One API container**, built from `backend/Dockerfile`. It serves the management API, the serving
+- **One API container**, or from v0.2 several behind one address (section 7), built from
+  `backend/Dockerfile`. It serves the management API, the serving
   API and the dashboard from one origin, on port 8080 (ADR-031). It keeps nothing on disk.
 - **One PostgreSQL 16 database**, which holds everything: projects, flags, rules, hashed API keys
   and the audit trail.
 - **A reverse proxy in front that terminates TLS.** Most container hosts provide one. API keys and
   dashboard tokens are bearer credentials, sent on every request, so plain HTTP is not an option.
 
-Run **exactly one** API container. Each instance holds the rulesets, the API keys and the rate
-limits in its own memory, and in v0.1 nothing tells one instance about a change made through
-another: a second instance serves rulesets up to a minute stale and keeps accepting a key revoked on
-the first until it restarts (ADR-013, ADR-036).
+With v0.1, run **exactly one** API container. Each instance holds the rulesets, the API keys and
+the rate limits in its own memory, and in v0.1 nothing tells one instance about a change made
+through another: a second instance serves rulesets up to a minute stale and keeps accepting a key
+revoked on the first until it restarts (ADR-013, ADR-036). From v0.2 you may run several behind one
+address; section 7 says what that needs.
 
 From v0.1.0, every release is published as **`ghcr.io/sanduniliyanage/flaglane`**, for
 `linux/amd64` and `linux/arm64` (ADR-038):
@@ -78,7 +80,8 @@ Flyway holds a session-level advisory lock while it migrates, and the driver pre
 the server after a few executions; a transaction-mode pooler hands each transaction to whichever
 server connection is free, so both break. A pooler in session mode works; a direct connection is
 simpler. The application keeps a pool of up to ten connections and Flyway opens its own at startup,
-so allow at least twenty on the database.
+so allow at least twenty on the database for one instance. From v0.2 each instance also holds one
+connection for hearing the others (section 7), so allow eleven more for each further instance.
 
 **Connect over TLS.** Put the options in the JDBC URL:
 
@@ -110,6 +113,8 @@ Configuration comes from environment variables only. Nothing has a default that 
 | `FLAGLANE_SDK_RATE_LIMIT_PER_MINUTE` | No | Serving API requests a minute per API key, a `304` counting as a tenth; 600 by default, which serves 500 SDK processes polling one key (ADR-035) |
 | `FLAGLANE_STREAM_MAX_PER_KEY` | No | From v0.2: open change streams one key may hold; 500 by default. Beyond it an SDK polls instead (FR-STR-004) |
 | `FLAGLANE_STREAM_MAX_PER_ENVIRONMENT` | No | From v0.2: open change streams one environment may hold; 1,000 by default |
+| `FLAGLANE_INSTANCE_SYNC` | No | From v0.2: whether instances announce their changes and hear each other's; `true` by default, and harmless on one instance (ADR-041) |
+| `FLAGLANE_DB_LISTEN_URL` | No | From v0.2: where the connection that hears other instances goes, if not to `FLAGLANE_DB_URL`. Needed when that URL is a pooler in transaction mode |
 
 A missing required variable stops the application at startup with the variable named. The JVM sizes
 its heap from the container's memory limit, so set one.
@@ -173,10 +178,16 @@ seconds of the container starting.
 
 ## 5. Upgrading
 
-Stop the running container, then start the new one. Do not run them side by side, as a rolling
-or blue-green deploy would: for as long as both run, each misses the changes made through the
-other. Many hosts start the new container before stopping the old one unless told otherwise; choose
-the strategy they call recreate, or stop first.
+With v0.1, stop the running container, then start the new one. Do not run them side by side, as a
+rolling or blue-green deploy would: for as long as both run, each misses the changes made through
+the other. Many hosts start the new container before stopping the old one unless told otherwise;
+choose the strategy they call recreate, or stop first. Upgrading from v0.1 to a later version, stop
+first too: a v0.1 instance announces nothing to the new one.
+
+From v0.2, instances of the same version hear each other, so a rolling deploy keeps every change
+reaching every instance, provided the old version can run against the database once the new one
+has migrated it. The changelog says when a release's migrations cannot be run beside the version
+before; until it does, stop first.
 
 - Migrations run when the new version starts, as `flaglane_migrator`, and only forward. Take a
   backup first; going back to an older version means restoring it.
@@ -190,9 +201,30 @@ The database is the only state. Use your provider's backups, with point-in-time 
 offers it. Restoring one brings back flags, keys and the audit trail together; an API key issued
 after the backup was taken is gone with it and has to be issued again.
 
+## 7. Several instances (from v0.2)
+
+Several containers of one version may run behind one address, for capacity or for deploys without a
+gap. Each tells the others what it changed, through PostgreSQL, as the change commits, and each
+reads the change from the database (ADR-041):
+
+- **A connection that can `LISTEN`.** Each instance holds one connection of its own, outside its
+  pool, on which it listens for the others. It must reach PostgreSQL directly or through a pooler in
+  session mode; a pooler in transaction mode accepts `LISTEN` and then delivers nothing. If
+  `FLAGLANE_DB_URL` is such a pooler, set `FLAGLANE_DB_LISTEN_URL` to the provider's direct URL.
+- **One more connection per instance**, eleven in all with its pool.
+- **`/actuator/health` shows `instanceSync`**: `UP` while the instance hears the others. While it
+  does not, it reconnects, and catches up on what it missed when it does; changes made through
+  other instances meanwhile reach it within a minute, from its own reconciliation. Like the
+  database's indicator, it gates no traffic.
+- **Rate limits are each instance's own.** With requests spread across `n` instances, a key may
+  spend up to `n` times `FLAGLANE_SDK_RATE_LIMIT_PER_MINUTE`, and an address up to `n` times the
+  sign-in limit. Set the limits with that in mind.
+- **Streams spread themselves.** A stream ends after 30 minutes and its SDK reconnects, so a new
+  instance takes its share of streams within half an hour without anything being moved.
+
 ## What this does not give you
 
-- **More than one instance**, for capacity or for deploys without a gap (ADR-036).
+- **Rate limits shared between instances.** Each instance keeps its own (ADR-041).
 - **Server-side sign-out.** A dashboard token stays valid for eight hours, whatever happens in the
   browser (ADR-012).
 - **A hosted instance.** The project runs none; you run your own (ADR-038).

@@ -336,6 +336,16 @@ management API, the cache rebuild, and the key cache's own load.
 Later migrations are added as features land. Every migration is reversible by a forward
 migration, never by editing.
 
+## Notifications between instances
+
+From v0.2, a write announces what it changed on the channel `flaglane`, with `pg_notify` run inside
+its transaction, so the notification is delivered only if the transaction commits (ADR-041). The
+payload is four words, `flaglane1 <instance> ruleset <environment id>` or
+`flaglane1 <instance> key <key id>`: which instance wrote, and where to look. It never carries what
+changed; every instance reads that from the tables above. No table, column or privilege is involved:
+any role may `NOTIFY` and `LISTEN`, and the application listens as `flaglane_app` on a connection
+of its own, named `flaglane-listener <instance>` in `pg_stat_activity`.
+
 ## Seed data
 
 `backend/src/test/resources/fixtures/` holds a deterministic dataset used by both the Java and

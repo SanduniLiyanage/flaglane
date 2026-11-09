@@ -22,6 +22,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   CI checks on every push that a change reaches it within a second over its stream, and within the
   poll interval without one.
 
+- Several API instances behind one address. Each announces what it changed through PostgreSQL as
+  the change commits and hears what the others change, on a connection of its own, catching up on
+  anything missed when it reconnects; a key revoked through one is refused by all. `/actuator/health`
+  reports `instanceSync`. `FLAGLANE_INSTANCE_SYNC` turns it off, and `FLAGLANE_DB_LISTEN_URL` gives
+  the listening connection a direct URL when the application's is a pooler in transaction mode.
+  Rate limits stay per instance.
+
 ### Changed
 
 - In Node, an open stream keeps the process running, as any open connection does. A short-lived

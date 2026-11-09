@@ -289,6 +289,9 @@ sessions — does not help; the problem is the write, not the reader.
 written, the cache reconciles with the database once a minute, so a second instance is stale for up
 to a minute rather than until it restarts; its key cache still learns of keys only at startup.
 
+**Amended by ADR-041.** Built for v0.2, as this entry intended and on ADR-036's conditions: from
+v0.2, several instances behind one address hear each other's changes.
+
 ---
 
 ## ADR-014 — Java 25 supersedes ADR-001's version choice
@@ -881,6 +884,8 @@ mechanism between instances — more load on the database for a stale window tha
 and nothing for keys; Redis pub/sub — ADR-013's reason, a second piece of infrastructure for every
 self-hoster.
 
+**Amended by ADR-041.** Slice 4.8 was built in v0.2 as slice 5.5, meeting each condition above.
+
 ---
 
 ## ADR-037 — Forwarded headers, believed only from a proxy on a private address
@@ -1027,3 +1032,48 @@ query string — a credential in every access log between the browser and Flagla
 usual rate beside the stream — twelve requests a minute per process for nothing while the stream
 works; a Node-only transport such as `node:http`, whose socket could be unreferenced — a second
 implementation of the stream for one runtime, and a bundler problem for every browser build.
+
+---
+
+## ADR-041 — Instances hear each other through PostgreSQL, and catch up whenever they reconnect
+
+ADR-013 named `LISTEN`/`NOTIFY` as the way to run more than one instance, and ADR-036 moved it to
+v0.2 with its conditions: a connection of its own, brought back when it drops; notifications lost
+while it is away; poolers that cannot carry `LISTEN`; and keys, streams and rate limits as well as
+rulesets. **Decision:** *Announcing.* A write's transaction announces what it changed with
+`pg_notify('flaglane', …)`, run just before it commits, inside it; PostgreSQL delivers a
+notification only when its transaction commits, so a write that rolls back announces nothing. The
+payload names the instance that wrote, and an environment whose ruleset changed or a key that was
+issued or revoked — never the change itself, which every instance reads from the database, the
+only source of truth. *Hearing.* Each instance holds one connection of its own, outside the pool,
+running `LISTEN`. An environment announced by another instance is rebuilt in its ruleset cache,
+which tells its own streams; a key announced reloads its key cache. Its own announcements it passes
+over. *Catching up.* A notification sent while an instance is not listening is lost, so every time
+the listening connection opens, at startup and after every drop, the instance reconciles its
+ruleset cache and reloads its keys before it listens on; the minute's reconciliation stays, and now
+covers keys too. A query every 30 seconds proves an otherwise quiet connection alive, and any
+failure reopens it with backoff and jitter from one second to thirty. *Keys.* A reload compares the
+keys it held with the database's, and announces in process each key no longer live, so the streams
+of a key revoked through another instance end and its allowance is dropped there too. The reload
+holds the cache's lock while it reads, so an issue or revoke committing meanwhile is applied after
+it and never overwritten by an older snapshot. *Switching it.* On by default, and harmless on one
+instance; `FLAGLANE_INSTANCE_SYNC=false` turns it off, and `FLAGLANE_DB_LISTEN_URL` sends the
+listening connection somewhere other than the pool's URL. The code lives in a `cluster` package, as
+`serving` did for the cache (ADR-024), and compiles against the PostgreSQL driver it already ran on.
+**Consequences:** a change made through one instance reaches the others within moments: in the test
+that runs two instances against one database, a key issued through one was accepted by the other,
+a change served by it and a stream on it told, each within a second; a key revoked through one was
+refused by the other, and its streams there ended. An instance whose listening connection is cut
+catches up when it reconnects, which the same test checks by cutting it from the database's side.
+Each instance holds one more connection than its pool. A pooler in transaction mode cannot carry
+`LISTEN`, so a deployment behind one gives the listening connection a direct URL, which
+`docs/DEPLOYMENT.md` says. Rate limits stay per instance: with requests spread across `n`
+instances, a key may spend up to `n` allowances, and an address up to `n` sign-in allowances; that
+is stated, not hidden. `/actuator/health` reports `instanceSync`, which gates nothing. The suite's
+many test contexts run with it off, so they do not rebuild for one another's writes; the two-instance
+test runs with it on. **Rejected:** Redis or another broker — ADR-013's reason; a shorter
+reconciliation in place of notifications — ADR-036's reason; announcing after commit from the
+application — a crash between commit and announcement would lose it, where the database announces
+exactly what committed; carrying the change in the payload — two sources of truth, and
+`NOTIFY`'s 8,000-byte limit; sharing rate limits through the database — a write on every serving
+request, which NFR-PER-004 rules out.

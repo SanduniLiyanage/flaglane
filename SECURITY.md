@@ -67,10 +67,11 @@ Stated here because a limitation you can read is worth more than one you discove
   users client-side with a targeting rule on an attribute your application already sends.
 - **API keys are bearer credentials with no scoping beyond environment and type.** A key reads
   everything its type entitles it to in its environment. There is no per-flag key.
-- **Revocation is immediate on one instance only.** Each API instance authenticates keys from its
-  own in-memory cache, which hears of a revoke made on that instance and of no other. v0.1 runs as
-  a single instance (ADR-036); a second one, or an old instance left running during a deploy, keeps
-  accepting a key revoked elsewhere until it restarts.
+- **Revocation reaches other instances by notification.** Each API instance authenticates keys
+  from its own in-memory cache. In v0.1, which runs as a single instance (ADR-036), a second
+  instance keeps accepting a key revoked elsewhere until it restarts. From v0.2, every instance
+  hears of a revoke as it commits and refuses the key from then on; one whose connection for hearing
+  the others is down refuses it within a minute, at its next reconciliation (ADR-041).
 
 ## Deployment notes
 

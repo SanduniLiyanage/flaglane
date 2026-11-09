@@ -89,6 +89,18 @@ class StreamRegistryTest {
   }
 
   @Test
+  void aKeyRevokedThroughAnotherInstanceGivesItsPlacesBackToo() {
+    SdkCredential key = key(production);
+    registry.open(key);
+    registry.open(key);
+
+    registry.noLongerLive(new ApiKeyEvents.NoLongerLive(key));
+
+    assertThat(registry.size()).isZero();
+    assertThat(registry.open(key)).isPresent();
+  }
+
+  @Test
   void afterShutdownBeginsNoStreamIsOpenedAndNoneIsHeld() {
     registry.open(key(production));
 

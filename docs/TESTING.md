@@ -150,6 +150,17 @@ stream waits out its `Retry-After`, that a silent one is dropped, that `close()`
 event it cannot read throws or replaces the ruleset. `sdk/test/stream-parser.test.ts` holds the
 parser to the event-stream format, pieces split anywhere and every line ending included.
 
+### 13. Instances — NFR-REL-002, FR-KEY-003 across instances
+Run two whole instances of the application against one database, with instance sync on, as two
+replicas behind one address. Assert that each reports `instanceSync` `UP`; that a key issued through
+one is accepted by the other within a second; that a change through one is served by the other, and
+reaches a stream open on the other, within a second; that a key revoked through one is refused by
+the other and its stream there ends; and that an instance whose listening connection is cut from the
+database's side, while a change commits, catches up on that change when it reconnects. Implemented in
+`InstancesEndToEndTest`; the announcement format is `ChangeTest`'s, and what an instance does with an
+announcement `ChangeListenerTest`'s. The rest of the suite runs with instance sync off, so its many
+application contexts do not rebuild for one another's writes.
+
 ## Performance checks
 
 Not pass/fail gates, but recorded and committed, because a claim without a measurement is

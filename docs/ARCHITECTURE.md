@@ -189,25 +189,40 @@ every version announced, it does not poll; whenever it has no stream, or a downl
 delivered an announced version, it polls as v0.1 did. A stream silent for 60 seconds is taken for
 dead. A server with no stream is polled for good.
 
-### One instance, and why that is written down
+### Several instances, and what v0.1 could not do
 
-**The ruleset cache, the key cache, the rate limits and the stream registry are in process.** Run two instances behind a load balancer and a write on instance A is not seen by
-instance B until B's once-a-minute reconciliation compares versions with the database; until then
-every SDK polling B keeps getting the old ruleset. For up to a minute, half the traffic would get a
-kill switch that has not killed, silently, in a system that otherwise looks healthy. Keys are
-worse: B learns of a key issued or revoked on A only when B restarts, so a key revoked on A keeps
-working against B. And each instance would give every key and every address an allowance of its
-own.
+**The ruleset cache, the key cache, the rate limits and the stream registry are in process.** Run
+two v0.1 instances behind a load balancer and a write on instance A is not seen by instance B until
+B's once-a-minute reconciliation compares versions with the database; until then every SDK talking
+to B keeps the old ruleset. For up to a minute, half the traffic would get a kill switch that has
+not killed, silently, in a system that otherwise looks healthy. Keys are worse: B learns of a key
+issued or revoked on A only when B restarts, so a key revoked on A keeps working against B. So v0.1
+is a single instance, deliberately, and says so (ADR-013, ADR-036).
 
-So v0.1 is a single instance, deliberately, recorded in ADR-013 and ADR-036 rather than left as a
-property nobody stated. The intended fix is PostgreSQL `LISTEN`/`NOTIFY` on commit, carrying key
-changes as well as ruleset changes — no new dependency, and the database is already in the
-transaction that needs observing. It is planned for v0.2, not v0.1, because the channel is
-something to operate as well as code: a listening connection held outside the pool and brought back
-when it drops, notifications lost while it is away, and poolers in transaction mode that cannot
-carry `LISTEN` at all (ADR-036). Until it lands, do not scale this horizontally, and do not run an
-old and a new instance side by side during a deploy. The failure mode is stale flags and a revoked
-key that still works, not an error, which is the worst kind to debug.
+**From v0.2, instances hear each other through the database** (`cluster/`, ADR-041). A write's own
+transaction runs `pg_notify` just before it commits, naming the environment or the key it changed;
+PostgreSQL delivers the notification only if the transaction commits. Every instance holds one
+connection of its own, outside the pool, on which it `LISTEN`s: an environment announced by another
+instance is rebuilt in its ruleset cache, which tells its own streams, and a key announced reloads
+its key cache, which ends the streams and drops the allowance of any key no longer live. What
+changed is always read from the database; the notification only says where to look.
+
+```
+Instance A                         PostgreSQL                         Instance B
+PATCH config ──► transaction ──► commit ──► NOTIFY flaglane ──► listener ──► rebuild ──► streams
+                 pg_notify(...)                                 (own connection)
+```
+
+A notification sent while an instance is not listening is lost, not queued, so each time the
+listening connection opens — at startup, and after every drop — the instance reconciles its rulesets
+and reloads its keys before listening on. A query every 30 seconds proves the connection alive, and
+the once-a-minute reconciliation, keys included, stays as the backstop. A pooler in transaction mode
+cannot carry `LISTEN`, so a deployment behind one gives the listening connection a direct URL
+(`FLAGLANE_DB_LISTEN_URL`).
+
+What stays per instance is the rate limits: with requests spread across `n` instances, a key may
+spend up to `n` allowances and an address up to `n` sign-in allowances. That is a stated limit, not
+an accident; sharing them would put a write on every serving request (NFR-PER-004).
 
 ## 6. Tenant isolation
 

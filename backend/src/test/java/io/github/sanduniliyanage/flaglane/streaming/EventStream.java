@@ -17,10 +17,10 @@ import java.util.stream.Stream;
  * by line as the server writes, so a test can wait for the next event, the next heartbeat or the
  * end of the stream, each with a deadline.
  */
-final class EventStream implements AutoCloseable {
+public final class EventStream implements AutoCloseable {
 
   /** One event: its name, its id, and its data. */
-  record Event(String name, String id, String data) {}
+  public record Event(String name, String id, String data) {}
 
   private static final String END = "\u0000end";
 
@@ -46,7 +46,7 @@ final class EventStream implements AutoCloseable {
   }
 
   /** Opens a stream with the key; returns once the response's headers have arrived. */
-  static EventStream open(int port, String key) throws Exception {
+  public static EventStream open(int port, String key) throws Exception {
     HttpClient client = HttpClient.newHttpClient();
     HttpRequest request =
         HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/sdk/stream"))
@@ -57,16 +57,16 @@ final class EventStream implements AutoCloseable {
     return new EventStream(client, client.send(request, HttpResponse.BodyHandlers.ofLines()));
   }
 
-  int status() {
+  public int status() {
     return response.statusCode();
   }
 
-  String header(String name) {
+  public String header(String name) {
     return response.headers().firstValue(name).orElse(null);
   }
 
   /** The body of a response that is not a stream, such as a 429. */
-  String errorBody(Duration timeout) throws InterruptedException {
+  public String errorBody(Duration timeout) throws InterruptedException {
     StringBuilder body = new StringBuilder();
     for (String line = poll(timeout); line != null && !line.equals(END); line = poll(timeout)) {
       body.append(line);
@@ -75,7 +75,7 @@ final class EventStream implements AutoCloseable {
   }
 
   /** The next event, passing over heartbeats; null if none arrives in time or the stream ends. */
-  Event nextEvent(Duration timeout) throws InterruptedException {
+  public Event nextEvent(Duration timeout) throws InterruptedException {
     long deadline = System.nanoTime() + timeout.toNanos();
     while (true) {
       List<String> block = nextBlock(remaining(deadline));
@@ -89,7 +89,7 @@ final class EventStream implements AutoCloseable {
   }
 
   /** Whether a heartbeat arrives in time, passing over any event before it. */
-  boolean heartbeat(Duration timeout) throws InterruptedException {
+  public boolean heartbeat(Duration timeout) throws InterruptedException {
     long deadline = System.nanoTime() + timeout.toNanos();
     while (true) {
       List<String> block = nextBlock(remaining(deadline));
@@ -103,7 +103,7 @@ final class EventStream implements AutoCloseable {
   }
 
   /** Whether the server ends the stream in time. */
-  boolean ends(Duration timeout) throws InterruptedException {
+  public boolean ends(Duration timeout) throws InterruptedException {
     long deadline = System.nanoTime() + timeout.toNanos();
     while (!ended) {
       String line = poll(remaining(deadline));

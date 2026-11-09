@@ -31,7 +31,9 @@ dependencies {
     implementation("org.flywaydb:flyway-database-postgresql")
     // Not in the Spring Boot BOM. The 2.x line targets Spring Boot 3; 3.x targets Spring Boot 4.
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17")
-    runtimeOnly("org.postgresql:postgresql")
+    // Compiled against, not only run: instances hear each other through its LISTEN/NOTIFY API
+    // (ADR-041). The same driver at the version the Spring Boot BOM manages.
+    implementation("org.postgresql:postgresql")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
@@ -53,6 +55,10 @@ tasks.withType<Test> {
     // Every test request comes from one address, and the suite signs up more users a minute than
     // the default sign-in limit allows. AuthRateLimitTest sets its own limit and tests it.
     environment("FLAGLANE_AUTH_RATE_LIMIT_PER_MINUTE", "60000")
+    // The suite keeps many application contexts open against one database, and each would rebuild
+    // for every other's writes. Off for them; InstancesEndToEndTest turns it on for the two
+    // instances it runs.
+    environment("FLAGLANE_INSTANCE_SYNC", "false")
     // OpenApiSnapshotTest compares the served document with the dashboard's snapshot, so the
     // snapshot is an input: editing it by hand must re-run the test rather than find it up to date.
     // A file collection rather than a file, because the snapshot may not exist yet.

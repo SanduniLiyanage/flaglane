@@ -11,9 +11,10 @@ runtime.
 
 Out of scope for v0.x: experimentation statistics, multivariate flags, RBAC, SSO, approval
 workflows, scheduled changes, SDKs other than TypeScript, regular-expression targeting operators
-(E-009) and revocable sessions (E-028). Out of scope for v0.1: running more than one API instance,
-since nothing tells one instance of a change made on another (ADR-013, E-043), and streaming changes
-to SDKs over Server-Sent Events: SDKs poll every five seconds instead (E-039).
+(E-009) and revocable sessions (E-028). Out of scope for v0.1, and in v0.2: running more than one
+API instance, which v0.1 cannot because nothing tells one instance of a change made on another
+(ADR-013, E-043, E-048), and streaming changes to SDKs over Server-Sent Events, for which v0.1 SDKs
+poll every five seconds (E-039, E-045).
 
 ## 2. Actors
 
@@ -77,7 +78,9 @@ to SDKs over Server-Sent Events: SDKs poll every five seconds instead (E-039).
   256 bits of entropy are what make a fast hash the right choice rather than bcrypt (ADR-007);
   the marker is for humans and secret scanners and is never trusted for authorisation.
 - **FR-KEY-003** A key is revocable. A revoked key is rejected immediately, on every request after
-  the revoke returns. Once streaming exists, its open streams close too (FR-STR-003).
+  the revoke returns, and its open streams close (FR-STR-003). Other instances reject it, and close
+  its streams, from the moment they hear of the revoke, or within a minute if they are not
+  listening (E-048).
 - **FR-KEY-004** A `server` key reads all flags in its environment.
 - **FR-KEY-005** A `client` key reads only flags marked client-side visible. Browser keys are
   public by nature and must not expose backend-only flags.
@@ -283,9 +286,9 @@ FR-STR-001 to FR-STR-004, is slice 5.1; the SDK's, FR-SDK-003, is slice 5.2 (E-0
 - **NFR-PER-003** A change reaches a running SDK that holds a stream in under one second, timed from
   the change being sent to the SDK holding the ruleset it produced; an SDK without a stream, such as
   a v0.1 SDK or one whose stream is down, within the poll interval, five seconds, plus one request
-  (E-039, E-047). Both on a single instance (ADR-013). Across instances it does not hold yet: a
-  write handled by one instance reaches another only when that one next reconciles with the
-  database, within about a minute (E-043).
+  (E-039, E-047). From v0.2 the same holds across instances: a write handled by one reaches the SDKs
+  of the others as it reaches its own, unless another is not listening for changes, in which case
+  it reaches that one's SDKs within about a minute (E-048).
 - **NFR-PER-004** No `/sdk/**` request performs a database query on the request path. The engine
   is a pure function over an in-memory ruleset; key authentication is served from the in-memory key
   cache (FR-KEY-007); `last_used_at` is flushed asynchronously (FR-KEY-006). "Evaluation path"
@@ -306,8 +309,8 @@ FR-STR-001 to FR-STR-004, is slice 5.1; the SDK's, FR-SDK-003, is slice 5.2 (E-0
   key that has been idle may spend its whole minute at once. A revoked key's bucket is dropped when
   the revoke commits. `GET /sdk/stream`, once it exists, is counted once when the connection is
   established and never per event — a stream is one request that lasts hours, and a per-request
-  limiter would either close it or be meaningless. Buckets are per instance, which is exact while
-  Flaglane runs as a single instance and is a limitation to revisit with the multi-instance work.
+  limiter would either close it or be meaningless. Buckets are per instance: with requests spread
+  across `n` instances, a key may spend up to `n` allowances (E-048).
   A client key is shared by every browser that loads the page, so its limit is also a ceiling on
   how many pages can poll at once, 500 at the default (E-039, E-042).
 - **NFR-SEC-006** `POST /api/auth/register` and `POST /api/auth/login` share a rate limit per client
@@ -321,10 +324,12 @@ FR-STR-001 to FR-STR-004, is slice 5.1; the SDK's, FR-SDK-003, is slice 5.2 (E-0
 - **NFR-REL-001** Service unavailability degrades applications to last-known-good, then to
   code-level defaults. It never causes an application error.
 - **NFR-REL-002** The in-memory cache rebuilds from the database on startup, after any write
-  handled by that instance, and once a minute for any environment whose version differs from the
-  database's. A write handled elsewhere reaches it only through that minute's reconciliation, and a
-  key issued or revoked elsewhere only through a restart, which is why v0.1 runs as a single
-  instance (ADR-013, E-043).
+  handled by that instance, when another instance announces a write, and once a minute for any
+  environment whose version differs from the database's. The key cache reloads when another
+  instance announces a key, and once a minute. An instance that was not listening catches up when it
+  reconnects, and the minute's reconciliation is the backstop (E-048). In v0.1, which announces
+  nothing, a write handled elsewhere arrives only by that reconciliation and a key only by a
+  restart, which is why v0.1 runs as a single instance (ADR-013, E-043).
 - **NFR-REL-003** Liveness (`/actuator/health/liveness`) ignores the database entirely. Readiness
   (`/actuator/health/readiness`) requires the ruleset cache only. Database health is reported as a
   separate indicator on `/actuator/health` and gates nothing. A database outage that made the
@@ -389,3 +394,4 @@ Corrections to this document, recorded rather than silently edited.
 | E-045 | FR-SRV-003, FR-STR-001 to FR-STR-004 | Built for v0.2. A stream's first event carries the version served when it opened; each event's id is that version; an event is sent after the ruleset cache has the new version, never at commit; a stream lasts at most 30 minutes before the server ends it; the heartbeat is every 25 seconds; a stream beyond a ceiling is refused with `Retry-After: 60`. | The requirements did not say when an event is sent, what an SDK reconnecting learns, or how long a stream lives. Sent at commit, an event could send an SDK for a ruleset the cache did not have yet; without a first event, a change made while an SDK reconnected waited for its next poll; with no lifetime, a connection stays on whichever instance or proxy it first reached (ADR-039). |
 | E-046 | FR-SDK-003, FR-SDK-004 | The SDK streams by default and downloads on an event; it polls whenever it has no stream or lacks an announced version, and not while its stream is open and it is up to date. A failed or silent stream is reopened with backoff; a server with no stream is polled. | E-039 made polling the SDK's only means for v0.1. With the stream built (E-045), an SDK that kept polling beside it would cost the server twelve requests a minute per process for nothing, and one that only streamed would stop learning of changes whenever a proxy, an outage or a v0.1 server took the stream away (ADR-040). |
 | E-047 | NFR-PER-003 | The sub-second target is restored for an SDK holding a stream, timed from the change being sent; five seconds plus one request remains the bound without a stream. | E-039 dropped it when the stream was cut. With the stream built (E-045, E-046), a change reached an SDK over it with a median of 27 to 30 ms and at most 150 ms in 200 on the measuring laptop, and the slowest were the server's own writes, not the stream (`docs/BENCHMARKS.md`). |
+| E-048 | Section 1, Scope; FR-KEY-003; NFR-PER-003, NFR-REL-002, NFR-SEC-005 | From v0.2, several instances behind one address hear each other's writes: announced with PostgreSQL `NOTIFY` as a write commits, heard on a connection of each instance's own, caught up on whenever it reconnects, and reconciled once a minute, keys included. Rate limits stay per instance and are stated so. | E-043 moved the work to v0.2 with conditions, each met by ADR-041. Two instances run against one database in a test: a key issued through one was accepted by the other, a change served and a stream told, each within a second; a key revoked through one was refused by the other; and one whose listening connection was cut caught up when it reconnected. |

@@ -150,7 +150,16 @@ public class StreamRegistry implements SmartLifecycle, DisposableBean {
   /** A revoked key's streams end before the revoke returns (FR-STR-003). */
   @TransactionalEventListener
   public void revoked(ApiKeyEvents.Revoked event) {
-    UUID keyId = event.credential().keyId();
+    endStreamsOf(event.credential().keyId());
+  }
+
+  /** A key revoked through another instance: its streams here end as soon as this one learns. */
+  @EventListener
+  public void noLongerLive(ApiKeyEvents.NoLongerLive event) {
+    endStreamsOf(event.credential().keyId());
+  }
+
+  private void endStreamsOf(UUID keyId) {
     List<Stream> closing =
         allStreams().stream().filter(s -> s.key().keyId().equals(keyId)).toList();
     closing.forEach(

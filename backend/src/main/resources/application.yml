@@ -59,6 +59,16 @@ flaglane:
     # seconds on one key. Answered with 429 and Retry-After beyond it.
     sdk-rate-limit:
       per-minute: ${FLAGLANE_SDK_RATE_LIMIT_PER_MINUTE:600}
+  # Several instances behind one address hear each other's changes through PostgreSQL LISTEN/NOTIFY
+  # (ADR-041): which environment or key changed, announced as the write commits; each instance then
+  # reads it from the database. Harmless on one instance. The listening connection is one of its own,
+  # outside the pool, and must reach PostgreSQL directly or through a pooler in session mode: one in
+  # transaction mode cannot carry LISTEN. FLAGLANE_DB_LISTEN_URL points it elsewhere than the pool.
+  instance-sync:
+    enabled: ${FLAGLANE_INSTANCE_SYNC:true}
+    listen-url: ${FLAGLANE_DB_LISTEN_URL:${spring.datasource.url}}
+    username: ${spring.datasource.username}
+    password: ${spring.datasource.password}
   # GET /sdk/stream (FR-STR-002, FR-STR-004, ADR-039). Beyond either ceiling a stream is refused with
   # 429 and its SDK keeps polling, so a full ceiling costs freshness, never correctness.
   streaming:

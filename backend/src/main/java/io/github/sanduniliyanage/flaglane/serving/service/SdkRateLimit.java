@@ -5,6 +5,7 @@ import io.github.sanduniliyanage.flaglane.common.security.TokenBuckets;
 import io.github.sanduniliyanage.flaglane.common.security.TokenBuckets.Decision;
 import java.time.Clock;
 import java.util.UUID;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -62,6 +63,12 @@ public class SdkRateLimit {
   /** A revoked key is refused before it reaches here, so its bucket would only take up room. */
   @TransactionalEventListener
   public void revoked(ApiKeyEvents.Revoked event) {
+    buckets.forget(event.credential().keyId().toString());
+  }
+
+  /** The same, for a key revoked through another instance (ADR-041). */
+  @EventListener
+  public void noLongerLive(ApiKeyEvents.NoLongerLive event) {
     buckets.forget(event.credential().keyId().toString());
   }
 

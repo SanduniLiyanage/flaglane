@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import io.github.sanduniliyanage.flaglane.apikey.domain.ApiKeyEvents;
@@ -17,11 +18,13 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 
 class ApiKeyCacheTest {
 
   private final ApiKeyRepository keys = mock(ApiKeyRepository.class);
-  private final ApiKeyCache cache = new ApiKeyCache(keys);
+  private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
+  private final ApiKeyCache cache = new ApiKeyCache(keys, events);
   private final String serverKey = ApiKeyFormat.generate(KeyType.SERVER, new SecureRandom());
   private final UUID environment = UUID.randomUUID();
 
@@ -77,6 +80,53 @@ class ApiKeyCacheTest {
 
     assertThat(cache.authenticate(serverKey)).isEmpty();
     assertThat(cache.size()).isZero();
+  }
+
+  @Test
+  void aReloadAnnouncesEachKeyItNoLongerHoldsAndNoOther() {
+    String revokedElsewhere = ApiKeyFormat.generate(KeyType.SERVER, new SecureRandom());
+    ApiKeyEntity kept = entity(serverKey, KeyType.SERVER);
+    ApiKeyEntity gone = entity(revokedElsewhere, KeyType.SERVER);
+    when(keys.findAllLive()).thenReturn(List.of(kept, gone), List.of(kept));
+    cache.reload();
+
+    cache.reload();
+
+    assertThat(cache.authenticate(revokedElsewhere)).isEmpty();
+    assertThat(cache.authenticate(serverKey)).isPresent();
+    verify(events)
+        .publishEvent(
+            new ApiKeyEvents.NoLongerLive(
+                new SdkCredential(gone.id(), environment, KeyType.SERVER)));
+    verify(events, never())
+        .publishEvent(
+            new ApiKeyEvents.NoLongerLive(
+                new SdkCredential(kept.id(), environment, KeyType.SERVER)));
+  }
+
+  @Test
+  void aKeyRevokedHereIsNotAnnouncedAgainByTheNextReload() {
+    ApiKeyEntity row = entity(serverKey, KeyType.SERVER);
+    when(keys.findAllLive()).thenReturn(List.of(row), List.of());
+    cache.reload();
+    SdkCredential credential = new SdkCredential(row.id(), environment, KeyType.SERVER);
+    cache.revoked(new ApiKeyEvents.Revoked(ApiKeyFormat.hash(serverKey), credential));
+
+    cache.reload();
+
+    verifyNoInteractions(events);
+  }
+
+  @Test
+  void aReconciliationWithTheDatabaseDownKeepsTheKeys() {
+    when(keys.findAllLive())
+        .thenReturn(List.of(entity(serverKey, KeyType.SERVER)))
+        .thenThrow(new org.springframework.dao.DataAccessResourceFailureException("down"));
+    cache.reload();
+
+    cache.reconcile();
+
+    assertThat(cache.authenticate(serverKey)).isPresent();
   }
 
   @Test
