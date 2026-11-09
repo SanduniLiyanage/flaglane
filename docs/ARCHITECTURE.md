@@ -249,3 +249,10 @@ Liveness is `/actuator/health/liveness` and ignores the database. Readiness is
 `/actuator/health/readiness` and requires the ruleset cache only. Database health is a separate
 indicator that gates no traffic (NFR-REL-003) — an outage must not get the serving path evicted
 by its own orchestrator.
+
+Deployed, the API sits behind a reverse proxy that terminates TLS, and every connection comes from
+that proxy. With `FLAGLANE_FORWARDED_HEADERS=native` the client's address and scheme are read from
+the proxy's `X-Forwarded-For` and `X-Forwarded-Proto`, believed only from a peer on a private
+address, so the sign-in limit is per client again and a request received over HTTPS is secure to the
+application (ADR-037). `docs/DEPLOYMENT.md` is the operator's guide: the two roles on a managed
+PostgreSQL, the connection, the variables, the probes, and upgrading a single instance.

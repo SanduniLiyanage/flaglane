@@ -880,3 +880,34 @@ ship tested only in the deployment shape v0.1 does not support; a shorter reconc
 mechanism between instances — more load on the database for a stale window that is still not zero,
 and nothing for keys; Redis pub/sub — ADR-013's reason, a second piece of infrastructure for every
 self-hoster.
+
+---
+
+## ADR-037 — Forwarded headers, believed only from a proxy on a private address
+
+ADR-029 limits sign-in per client address and left reading a reverse proxy's forwarded headers to
+slice 1.10. Behind a proxy every connection comes from the proxy, so every client shares one
+allowance of ten a minute, and one client guessing passwords holds everyone else out of sign-in.
+No request looks like HTTPS either: Spring Security sends no `Strict-Transport-Security`, and the
+OpenAPI document names an `http://` server that Swagger UI, loaded over HTTPS, cannot call.
+**Decision:** `FLAGLANE_FORWARDED_HEADERS` is Spring Boot's `server.forward-headers-strategy`,
+`none` by default and `native` behind a proxy. `native` installs Tomcat's `RemoteIpValve`, which
+believes `X-Forwarded-For` and `X-Forwarded-Proto` only from a peer it counts as a proxy: by default
+any loopback, link-local, RFC 1918, carrier-grade NAT (100.64.0.0/10) or IPv6 unique local address,
+replaced by setting `SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES`. The client is the rightmost forwarded
+address that is not a proxy's, so whatever a client writes in the header itself is passed over, as
+long as the proxy appends the address it saw, which the common ones do. `framework`, Spring's
+`ForwardedHeaderFilter`, is refused at startup, because it believes the headers from any peer.
+**Consequences:** behind a proxy each client has its own sign-in allowance, a request the proxy
+received over HTTPS is secure to the application, and HSTS is sent. Off is the default because a
+peer on a private address need not be a proxy: on the Compose stack every request arrives through
+Docker's port forwarding from the network's gateway, a private address, and believing headers from
+it would let any client name a new address, and get a new allowance, on every request. For the same
+reason a deployment that sets `native` must not let clients reach the API from a private address
+except through the proxy, which `docs/DEPLOYMENT.md` says. A proxy that connects from a public
+address has to be named in `SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES`, as a regular expression, which
+is Tomcat's format. The serving API's limit is per key and is unaffected. **Rejected:** `framework` —
+any client could name its own address; reading `X-Forwarded-For` in the sign-in limiter — a second,
+partial copy of what Tomcat already does, which would still leave the scheme wrong; the RFC 7239
+`Forwarded` header — few proxies send it unless configured to, and the valve reads the
+`X-Forwarded-*` headers they do send; on by default — the Compose stack above.

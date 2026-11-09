@@ -65,7 +65,9 @@ There is no refresh token and no `/api/auth/me` (ADR-012).
 
 Both endpoints share one allowance per client address: 10 requests a minute by default, any 10 of
 them at once after a quiet minute, and every address in an IPv6 /64 counts as one (NFR-SEC-006,
-ADR-029). Beyond it they answer 429 with `Retry-After` in seconds, before the password is checked:
+ADR-029). Behind a reverse proxy declared with `FLAGLANE_FORWARDED_HEADERS=native`, the client
+address is the one the proxy appended to `X-Forwarded-For`; an address a client writes there itself
+counts for nothing (ADR-037). Beyond it they answer 429 with `Retry-After` in seconds, before the password is checked:
 
 ```json
 429

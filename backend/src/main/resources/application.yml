@@ -35,6 +35,15 @@ spring:
       # integer on both sides of the API (CLAUDE.md, ADR-011): a fraction is refused, not rounded.
       accept-float-as-int: false
 
+server:
+  # Behind a reverse proxy every connection comes from the proxy, so every client would share one
+  # sign-in allowance (ADR-029) and no request would look like HTTPS. `native` has Tomcat take the
+  # client's address and scheme from X-Forwarded-For and X-Forwarded-Proto, believed only from a
+  # peer on a private address (ADR-037). Off by default: without a proxy in front, a peer on a
+  # private address can be any client, as one is behind Docker's port forwarding, and it could name
+  # a new address, and get a new allowance, on every request.
+  forward-headers-strategy: ${FLAGLANE_FORWARDED_HEADERS:none}
+
 flaglane:
   security:
     jwt:

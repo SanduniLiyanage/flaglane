@@ -307,7 +307,9 @@ will be built after v0.1; until then no `/sdk/stream` exists and SDKs poll (FR-S
 - **NFR-SEC-006** `POST /api/auth/register` and `POST /api/auth/login` share a rate limit per client
   address, by the same token bucket: 10 requests a minute by default, configurable, answering 429
   with `Retry-After` before the request body is read or a password hashed. An IPv6 /64 counts as one
-  address (E-040).
+  address (E-040). Behind a reverse proxy declared with `FLAGLANE_FORWARDED_HEADERS=native`, the
+  client address is the one the proxy forwarded, believed only from a proxy on a private address
+  (E-044).
 
 ### Reliability
 - **NFR-REL-001** Service unavailability degrades applications to last-known-good, then to
@@ -377,3 +379,4 @@ Corrections to this document, recorded rather than silently edited.
 | E-041 | FR-AUD-003 | The trail is read per project, narrowed by an environment or flag key, and each entry names its actor, environment and flag; an environment deleted since keeps the key it had. Recorded states are returned as recorded. | `docs/API.md` already specified one project endpoint, and project creation, environment deletion and key events belong to no flag. Entries that gave ids would have been unreadable to the dashboard, which names everything by key (ADR-030). |
 | E-042 | NFR-SEC-005, FR-SDK-004 | A `304` counts as a tenth of a request, so the default of 600 a minute serves 500 polling SDK processes per key; the limit is applied before the request is handled; a revoked key's bucket is dropped. The SDK waits out a 429's `Retry-After` as it does a 503's. | E-039 left the limit to be sized for polling fleets when it was built: counted as a whole request each, a `304` — the commonest answer by far, and headers only — let fifty processes polling one key reach the default. And an SDK that ignored a 429's `Retry-After` asked again on its backoff schedule, sooner than the server had said it would answer (ADR-035). |
 | E-043 | Section 1, Scope; NFR-PER-003, NFR-REL-002 | Cache invalidation across instances, slice 4.8, moves to v0.2, and v0.1 runs one API instance. A second instance serves a stale ruleset until it rebuilds, at its reconciliation within about a minute, and learns of a key issued or revoked on another instance only when it restarts. | E-036 named the fix and scheduled it for v0.1. A shared invalidation channel is infrastructure to operate as well as code: a connection held open outside the pool and brought back when it drops, notifications lost while it is down, poolers that cannot carry `LISTEN`, and keys and rate limits to share as well as rulesets. One instance needs none of it (ADR-036). |
+| E-044 | NFR-SEC-006 | Behind a declared reverse proxy, the client address is read from `X-Forwarded-For`, and only when the connection comes from a proxy on a private address. Undeclared, it is the connecting peer's. | Behind a proxy every request came from the proxy's address, so all clients shared one allowance and one client could hold every other out of sign-in; believing the header from anyone would let each client name a new address per request (ADR-037). |
