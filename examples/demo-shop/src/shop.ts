@@ -63,6 +63,8 @@ export interface View {
     readonly configured: boolean;
     readonly ready: boolean;
     readonly version: number | undefined;
+    /** Whether the SDK holds a stream now; without one it polls every five seconds. */
+    readonly streaming: boolean;
     readonly lastMessage: SdkLog["last"];
   };
 }
@@ -75,7 +77,13 @@ export function viewFor(flags: FlaglaneClient, log: SdkLog, shopper: Shopper, co
     newCheckout: flags.evaluate(NEW_CHECKOUT, context, false),
     freeShipping: flags.evaluate(FREE_SHIPPING, context, false),
     crowdOn: crowd.filter((key) => flags.isOn(NEW_CHECKOUT, { key }, false)),
-    sdk: { configured, ready: flags.ready, version: flags.version, lastMessage: log.last },
+    sdk: {
+      configured,
+      ready: flags.ready,
+      version: flags.version,
+      streaming: flags.streaming,
+      lastMessage: log.last,
+    },
   };
 }
 

@@ -2,7 +2,7 @@
 
 Hilltop Tea is a small storefront whose checkout and shipping banner are decided by Flaglane flags.
 It is the quickest way to see Flaglane work end to end without a dashboard. Change a flag through the
-management API and the shop changes within five seconds. Stop Flaglane and the shop keeps serving.
+management API and the shop changes within a second. Stop Flaglane and the shop keeps serving.
 
 The shop is one `FlaglaneClient` with a server key, evaluating in process:
 
@@ -68,7 +68,10 @@ Content-Type: application/json
 { "rolloutPercentage": 60 }
 ```
 
-The shop's SDK checks for a new ruleset every five seconds, so the change appears within that time.
+The shop's SDK holds a stream to Flaglane, which tells it of a change the moment it is made, and the
+page, which redraws itself every second, shows it within a second. The side panel says whether the
+SDK is streaming. Start the shop with `FLAGLANE_STREAMING=false` and its SDK polls every five seconds
+instead, as a 0.1 SDK does, so the change appears within that time.
 
 ## Stop Flaglane
 

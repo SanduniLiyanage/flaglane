@@ -181,12 +181,14 @@ are not evidence.
 All eight gates are live. Gate 4 is `jacocoTestCoverageVerification`, which `check` runs: it
 fails below 90% line coverage in `evaluation/` and nowhere else, and it was confirmed to fail when
 raised above the actual figure. Gate 5 is the workflow's SDK job: `npm ci`, then `tsc` with no
-emit, then Vitest, then the build, on Node 24. Gate 7 is the workflow's demo job, milestone 4's exit
-criteria as a check: it starts the Compose stack with credentials generated for the run, seeds
-`examples/demo-shop`, and runs its `verify` script twice (ADR-028). The first makes four changes
-through the management API and fails if any takes more than the five-second poll interval plus one
-second to reach the shop, or if raising the rollout takes the feature from anyone. The second runs
-with the API stopped and fails unless the shop still applies the override, the rule and the rollout.
+emit, then Vitest, then the build, on Node 24. Gate 7 is the workflow's demo job, the exit
+criteria of milestones 4 and 5 as a check: it starts the Compose stack with credentials generated
+for the run, seeds `examples/demo-shop`, and runs its `verify` script three times (ADR-028). First
+the shop runs with `FLAGLANE_STREAMING=false`: four changes through the management API must each
+reach it by polling within the five-second interval plus one second, with no stream open, and
+raising the rollout must take the feature from nobody. Then the shop runs as shipped: its SDK must
+hold a stream, and the same four changes must each reach it within one second. Last, with the API
+stopped, the streaming shop must still apply the override, the rule and the rollout.
 Gate 8 is the workflow's dashboard job: `npm ci`, then the API types regenerated from
 `dashboard/openapi.json` and diffed against the committed ones, then `tsc`, Vitest and the build.
 The snapshot itself is held to the served document by `OpenApiSnapshotTest` in gate 3 (ADR-031).

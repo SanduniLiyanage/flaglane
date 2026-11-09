@@ -18,6 +18,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   its stream is open it does not poll; whenever there is none, as against a 0.1 server, it polls
   every five seconds as before. `streaming: false` polls only; `client.streaming` says whether a
   stream is open.
+- The demo shop shows whether its SDK streams, and `FLAGLANE_STREAMING=false` starts it polling.
+  CI checks on every push that a change reaches it within a second over its stream, and within the
+  poll interval without one.
 
 ### Changed
 

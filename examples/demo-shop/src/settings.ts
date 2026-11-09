@@ -12,6 +12,9 @@ export const projectKey = process.env.FLAGLANE_DEMO_PROJECT ?? "demo-shop";
 export const port = Number(process.env.PORT ?? 3000);
 export const shopUrl = `http://localhost:${port}`;
 
+/** Whether the shop's SDK holds a stream. `false` makes it poll only, as a 0.1 SDK does. */
+export const streaming = (process.env.FLAGLANE_STREAMING ?? "true").toLowerCase() !== "false";
+
 export function sdkKey(): string {
   return process.env.FLAGLANE_SDK_KEY ?? "";
 }

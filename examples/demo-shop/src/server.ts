@@ -5,12 +5,12 @@
 import { createServer } from "node:http";
 import { FlaglaneClient } from "@flaglane/sdk";
 import { renderPage } from "./page.ts";
-import { flaglaneUrl, port, sdkKey } from "./settings.ts";
+import { flaglaneUrl, port, sdkKey, streaming } from "./settings.ts";
 import { SdkLog, findShopper, viewFor } from "./shop.ts";
 
 const log = new SdkLog();
 const key = sdkKey();
-const flags = await FlaglaneClient.init({ sdkKey: key, baseUrl: flaglaneUrl, logger: log });
+const flags = await FlaglaneClient.init({ sdkKey: key, baseUrl: flaglaneUrl, logger: log, streaming });
 
 const server = createServer((request, response) => {
   const url = new URL(request.url ?? "/", "http://localhost");

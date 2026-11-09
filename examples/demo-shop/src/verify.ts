@@ -1,13 +1,15 @@
-// Checks milestone 4's exit criteria against a running Flaglane and a running shop.
+// Checks the exit criteria of milestones 4 and 5 against a running Flaglane and a running shop.
 //
-//   npm run verify -- propagation   a rollout change and the kill switch each reach the shop within
-//                                   the five-second poll interval, and raising the rollout takes
-//                                   the new checkout away from nobody who had it
+//   npm run verify -- propagation   the shop's SDK holds a stream, and a rollout change and the kill
+//                                   switch each reach the shop within a second; raising the rollout
+//                                   takes the new checkout away from nobody who had it
+//   npm run verify -- polling       the same with a shop started with FLAGLANE_STREAMING=false: no
+//                                   stream, and every change within the five-second poll interval
 //   npm run verify -- offline       run after stopping Flaglane: the shop keeps serving, from the
 //                                   last ruleset it had rather than from fallbacks
 //
-// CI runs both against docker compose. propagation changes the demo's flags and leaves
-// new-checkout on at 60%; npm run seed puts it back to 30%.
+// CI runs all three against docker compose. propagation and polling change the demo's flags and
+// leave new-checkout on at 60%; npm run seed puts it back to 30%.
 
 import assert from "node:assert/strict";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -17,6 +19,8 @@ import { ENVIRONMENT, NEW_CHECKOUT, account, flaglaneUrl, projectKey, sdkKey, sh
 const POLL_INTERVAL_MS = 5_000;
 /** One conditional request on top of the interval, and this script sampling every 50 ms. */
 const ALLOWANCE_MS = 1_000;
+/** Milestone 5's bound with a stream: an event, one download, and this script's sampling. */
+const STREAMED_MS = 1_000;
 
 interface Evaluation {
   readonly value: boolean;
@@ -30,6 +34,7 @@ interface State {
   readonly sdk: {
     readonly ready: boolean;
     readonly version?: number;
+    readonly streaming: boolean;
     readonly lastMessage?: { readonly message: string; readonly at: string };
   };
 }
@@ -38,21 +43,29 @@ const mode = process.argv[2];
 
 try {
   if (mode === "propagation") {
-    await propagation();
+    await propagation(true, STREAMED_MS);
+  } else if (mode === "polling") {
+    await propagation(false, POLL_INTERVAL_MS + ALLOWANCE_MS);
   } else if (mode === "offline") {
     await offline();
   } else {
-    throw new Error("Usage: npm run verify -- propagation | offline");
+    throw new Error("Usage: npm run verify -- propagation | polling | offline");
   }
 } catch (error) {
   console.error(error instanceof Error ? (error.stack ?? error.message) : error);
   process.exitCode = 1;
 }
 
-async function propagation(): Promise<void> {
+/** Four changes, each timed from the moment Flaglane has it to the moment the shop serves it. */
+async function propagation(streamed: boolean, budgetMs: number): Promise<void> {
   const { email, password } = account();
   const api = await Management.signIn(email, password);
   await until("the shop to hold a ruleset", 30_000, async () => ((await state()).sdk.ready ? true : undefined));
+  if (streamed) {
+    await until("the shop's SDK to hold a stream", 30_000, async () => ((await state()).sdk.streaming ? true : undefined));
+  } else {
+    assert.equal((await state()).sdk.streaming, false, "the shop was started with FLAGLANE_STREAMING=false");
+  }
 
   const start = await change(api, { enabled: true, rolloutPercentage: 30 });
   const raised = await change(api, { rolloutPercentage: 60 });
@@ -83,10 +96,12 @@ async function propagation(): Promise<void> {
   );
   for (const [what, { elapsedMs }] of changes) {
     assert.ok(
-      elapsedMs <= POLL_INTERVAL_MS + ALLOWANCE_MS,
-      `${what} took ${elapsedMs.toFixed(0)} ms to reach the shop; the poll interval is ${POLL_INTERVAL_MS} ms`,
+      elapsedMs <= budgetMs,
+      `${what} took ${elapsedMs.toFixed(0)} ms to reach the shop ${streamed ? "over its stream" : "by polling"}; ` +
+        `the bound is ${budgetMs} ms`,
     );
   }
+  console.log(streamed ? "All four arrived over the stream." : "All four arrived by polling, with no stream.");
 }
 
 async function offline(): Promise<void> {

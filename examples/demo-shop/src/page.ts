@@ -114,7 +114,10 @@ function sdkStatus(view: View): string {
   if (!view.sdk.ready || view.sdk.version === undefined) {
     return "No ruleset yet, so every flag is at its fallback. The SDK keeps trying.";
   }
-  return `Evaluating in process from ruleset version <strong>${view.sdk.version}</strong>, checked for changes every five seconds.`;
+  const updates = view.sdk.streaming
+    ? "told of each change by a stream, the moment it is made"
+    : "checked for changes every five seconds, since it holds no stream";
+  return `Evaluating in process from ruleset version <strong>${view.sdk.version}</strong>, ${updates}.`;
 }
 
 function escape(text: string): string {

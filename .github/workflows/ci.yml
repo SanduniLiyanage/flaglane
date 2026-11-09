@@ -6,9 +6,10 @@
 # default socket with no setup step. The SDK job type-checks, tests and builds sdk/;
 # its parity suite reads the same fixtures under backend/ that the server's does. The
 # dashboard job does the same for dashboard/, and fails if its API types are not the
-# ones generated from the OpenAPI snapshot. The
-# demo job runs milestone 4's exit criteria: the demo shop, against the Compose stack,
-# picks up a change within the poll interval and keeps serving with the API stopped.
+# ones generated from the OpenAPI snapshot. The demo job runs the exit criteria of
+# milestones 4 and 5: against the Compose stack, the demo shop picks up a change within
+# a second over its stream and within the poll interval without one, and keeps serving
+# with the API stopped.
 name: CI
 
 on:
@@ -148,10 +149,19 @@ jobs:
           } > .env
           docker compose up --detach --build --wait --wait-timeout 180
 
-      - name: Seed, start the shop, and time a change reaching it
+      # Without a stream first: the fallback every SDK uses when its stream is gone.
+      - name: Seed, start the shop polling, and time a change reaching it
         working-directory: examples/demo-shop
         run: |
           npm run seed
+          FLAGLANE_STREAMING=false nohup npm start > shop-polling.log 2>&1 &
+          npm run verify -- polling
+          pkill -f "src/server.ts"
+          timeout 15 bash -c 'while pgrep -f "src/server.ts" > /dev/null; do sleep 0.2; done'
+
+      - name: Start the shop as shipped, and time a change reaching it over its stream
+        working-directory: examples/demo-shop
+        run: |
           nohup npm start > shop.log 2>&1 &
           npm run verify -- propagation
 
@@ -164,4 +174,5 @@ jobs:
         if: failure()
         run: |
           docker compose logs
+          cat examples/demo-shop/shop-polling.log || true
           cat examples/demo-shop/shop.log || true
