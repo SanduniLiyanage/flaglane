@@ -77,9 +77,11 @@ A slice is done when all of these hold:
 A release is an annotated tag on `main`, `vMAJOR.MINOR.PATCH`, and everything it publishes is built
 from that commit.
 
-1. The version is written in three places, changed together: `backend/build.gradle.kts`,
+1. The version is written in these places, changed together: `backend/build.gradle.kts`,
    `OpenApiConfiguration` (then regenerate the OpenAPI snapshot and the dashboard's types, as
-   `CONTRIBUTING.md` shows), and `sdk/package.json`.
+   `CONTRIBUTING.md` shows), and the `package.json` of `sdk/`, `dashboard/` and
+   `examples/demo-shop/`, with `npm version <version> --no-git-tag-version` so the lock files follow;
+   then `npm install` in `examples/demo-shop/`, whose lock file records the linked SDK's version.
 2. In `CHANGELOG.md`, the Unreleased section becomes the version with its date, under a new, empty
    Unreleased section.
 3. Run the release workflow on `main` by hand (Actions, Release, Run workflow). It builds the image

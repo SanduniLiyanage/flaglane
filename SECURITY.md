@@ -4,8 +4,8 @@
 
 | Version | Security fixes |
 | --- | --- |
-| 0.1.x | Yes, as patch releases of the image and the SDK |
-| Earlier | None were released |
+| 0.2.x | Yes, as patch releases of the image and the SDK |
+| 0.1.x | No: upgrade to 0.2, which needs no migration |
 
 Fixes land on `main` first and ship in the next patch release. Run the latest patch release of the
 latest line.

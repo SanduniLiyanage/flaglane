@@ -36,11 +36,12 @@ if (flags.isOn("new-checkout", { key: user.id, country: user.country })) {
 
 That is the last deploy you need. From then on, the rollout is controlled from the dashboard.
 
-The SDK downloads the full ruleset for its environment once at startup, evaluates flags in memory
-in microseconds, and is kept up to date by polling every five seconds, at the cost of an empty
-response while nothing has changed. **If Flaglane is unreachable, your
-application keeps running** on the last known ruleset, and failing that, on the default value you
-specified in code. Flaglane being down must never take your application down.
+The SDK downloads the full ruleset for its environment once at startup and evaluates flags in
+memory in microseconds. It holds a stream to Flaglane, which tells it the moment a flag changes, so
+a change, the kill switch included, is in use within a second; whenever it has no stream, it checks
+every five seconds instead. **If Flaglane is unreachable, your application keeps running** on the
+last known ruleset, and failing that, on the default value you specified in code. Flaglane being
+down must never take your application down.
 
 ## Features
 
@@ -51,8 +52,9 @@ specified in code. Flaglane being down must never take your application down.
 - Kill switch: one confirmed action turns a flag off in an environment, whatever its rules and
   rollout say, without waiting on any other edit
 - In-process evaluation (fast) and remote evaluation (for thin clients)
-- Changes reach running applications within five seconds, by polling. Streaming over Server-Sent
-  Events is designed but not in v0.1 (ADR-027)
+- Changes reach running applications within a second, over Server-Sent Events, and within five
+  seconds by polling whenever the stream is unavailable
+- Several API instances behind one address, kept in step through PostgreSQL
 - Projects and environments with isolated API keys
 - Separate server-side and client-side keys, so browser keys cannot read backend-only flags
 - Append-only audit log of every change
@@ -69,12 +71,8 @@ Flaglane is a flag engine, not an experimentation platform. It does not include:
 - Role-based access control, SSO, or approval workflows
 - Scheduled flag changes
 - SDKs beyond TypeScript
-- Horizontal scaling. **v0.1 runs as a single API instance.** The ruleset cache, the key cache and
-  the rate limits live in process, so a second instance would serve flags up to a minute stale,
-  until it reconciles with the database, and would keep accepting a key revoked on the other until
-  it restarts. Invalidation across instances over PostgreSQL `LISTEN`/`NOTIFY` is planned for
-  v0.2. Until then, run one instance, and stop the old one before starting the new one when you
-  deploy (ADR-013, ADR-036)
+- Rate limits shared between instances. Each instance gives a key and an address an allowance of
+  its own, so across `n` instances a key may spend up to `n` allowances (ADR-041)
 - Server-side sign-out. Dashboard sessions are a single access token with no revocation list, so
   signing out discards it in the browser and it stays valid until it expires (ADR-012)
 
@@ -107,16 +105,16 @@ signs every dashboard user out. `.env` is gitignored. If something on your machi
 on 5432, set `FLAGLANE_DB_PORT` in `.env` to publish PostgreSQL on another port.
 
 To see it work, run the [demo shop](examples/demo-shop/) against that stack. It is a small
-storefront on the SDK: move a rollout from the command line and the shop changes within five
-seconds, then stop the API and the shop keeps going.
+storefront on the SDK: move a rollout from the command line and the shop changes within a second,
+then stop the API and the shop keeps going.
 
 ## Deploying
 
 Each release is published as the container image `ghcr.io/sanduniliyanage/flaglane`, for x86-64
-and Arm. Run one container of it behind your host's HTTPS proxy, with one managed PostgreSQL 16
-database. [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) covers creating the two database roles,
-connecting over TLS, the environment variables, reading the client's address through the proxy,
-health checks and upgrades. Run exactly one instance.
+and Arm. Run it behind your host's HTTPS proxy, as one container or several, with one managed
+PostgreSQL 16 database. [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) covers creating the two database
+roles, connecting over TLS, the environment variables, reading the client's address through the
+proxy, running several instances, health checks and upgrades.
 
 See [docs/](docs/) for architecture, API contract, database design and testing strategy.
 

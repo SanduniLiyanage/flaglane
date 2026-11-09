@@ -40,7 +40,7 @@ import org.springframework.context.annotation.Configuration;
     info =
         @Info(
             title = "Flaglane API",
-            version = "0.1.0",
+            version = "0.2.0",
             description =
                 "Feature flags and remote configuration. `/api/**` serves the dashboard with a"
                     + " JWT; `/sdk/**` serves SDKs with an API key.",

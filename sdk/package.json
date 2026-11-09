@@ -1,6 +1,6 @@
 {
   "name": "@flaglane/sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Flaglane feature flags, evaluated in process from a ruleset the Flaglane server serves. Keeps answering when Flaglane is down.",
   "license": "Apache-2.0",
   "keywords": [

@@ -1,6 +1,6 @@
 {
   "name": "flaglane-demo-shop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "A small storefront whose checkout and shipping banner are decided by Flaglane flags.",
   "license": "Apache-2.0",

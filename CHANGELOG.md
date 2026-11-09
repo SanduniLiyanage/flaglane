@@ -7,6 +7,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-10
+
+Changes now reach applications within a second, and Flaglane can run as several instances.
+
+- Image: `ghcr.io/sanduniliyanage/flaglane:0.2.0`, for `linux/amd64` and `linux/arm64`
+- SDK: `npm install @flaglane/sdk@0.2.0`
+
 ### Added
 
 - `GET /sdk/stream`: Server-Sent Events that tell an SDK, within moments of a change, which version
@@ -14,25 +21,40 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   opened; a comment every 25 seconds keeps it open through idle proxies; streams last 30 minutes,
   end when their key is revoked, and are limited to 500 a key and 1,000 an environment
   (`FLAGLANE_STREAM_MAX_PER_KEY`, `FLAGLANE_STREAM_MAX_PER_ENVIRONMENT`).
-- The SDK listens on the stream and downloads a changed ruleset the moment it is announced. While
-  its stream is open it does not poll; whenever there is none, as against a 0.1 server, it polls
-  every five seconds as before. `streaming: false` polls only; `client.streaming` says whether a
-  stream is open.
-- The demo shop shows whether its SDK streams, and `FLAGLANE_STREAMING=false` starts it polling.
-  CI checks on every push that a change reaches it within a second over its stream, and within the
-  poll interval without one.
-
+- The SDK listens on the stream and downloads a changed ruleset the moment it is announced: on the
+  measuring laptop, a change reached it 27 to 30 ms after it was sent at the median, and at most
+  150 ms. While its stream is open it does not poll; whenever there is none, as against a 0.1
+  server, it polls every five seconds as before. `streaming: false` polls only; `client.streaming`
+  says whether a stream is open.
 - Several API instances behind one address. Each announces what it changed through PostgreSQL as
   the change commits and hears what the others change, on a connection of its own, catching up on
-  anything missed when it reconnects; a key revoked through one is refused by all. `/actuator/health`
-  reports `instanceSync`. `FLAGLANE_INSTANCE_SYNC` turns it off, and `FLAGLANE_DB_LISTEN_URL` gives
-  the listening connection a direct URL when the application's is a pooler in transaction mode.
-  Rate limits stay per instance.
+  anything missed when it reconnects; a key revoked through one is refused by all.
+  `/actuator/health` reports `instanceSync`. `FLAGLANE_INSTANCE_SYNC` turns it off, and
+  `FLAGLANE_DB_LISTEN_URL` gives the listening connection a direct URL when the application's is a
+  pooler in transaction mode. Rate limits stay per instance.
+- The release workflow runs the published image on an x86-64 and an Arm machine after publishing,
+  and can check an earlier release again on demand.
+- The demo shop shows whether its SDK streams, and `FLAGLANE_STREAMING=false` starts it polling. CI
+  checks on every push that a change reaches it within a second over its stream, and within the poll
+  interval without one.
 
 ### Changed
 
 - In Node, an open stream keeps the process running, as any open connection does. A short-lived
   script that creates a client should call `close()` when it is done, or pass `streaming: false`.
+
+### Fixed
+
+- The demo shop says that its port is taken, and how to choose another, instead of stopping on a
+  stack trace.
+
+### Upgrading from 0.1.0
+
+- No migration is added, and both halves mix: a 0.2 SDK polls a 0.1 server as before, and a 0.1 SDK
+  polls a 0.2 server.
+- Stop the 0.1 instance before starting 0.2. A 0.1 instance announces nothing, so the two would miss
+  each other's changes while both ran.
+- Allow one more database connection per instance, for hearing the others.
 
 ## [0.1.0] - 2026-11-09
 
@@ -130,5 +152,6 @@ Each is a decision recorded in `docs/DECISIONS.md`, not an oversight.
 - **User overrides do not apply to client keys** (FR-KEY-008).
 - **No hosted instance.** The project runs none; you run your own from the image (ADR-038).
 
-[Unreleased]: https://github.com/SanduniLiyanage/flaglane/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/SanduniLiyanage/flaglane/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/SanduniLiyanage/flaglane/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/SanduniLiyanage/flaglane/releases/tag/v0.1.0

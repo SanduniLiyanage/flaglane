@@ -34,7 +34,7 @@ You need Node 22.18 or later, which runs the TypeScript directly, and Flaglane r
 stack, see [Running locally](../../README.md#running-locally).
 
 ```bash
-# Until @flaglane/sdk is on npm, the shop links to the SDK in this repository.
+# The shop links to the SDK in this repository, so build it first.
 npm --prefix sdk ci && npm --prefix sdk run build
 
 cd examples/demo-shop
@@ -112,7 +112,9 @@ applies the override, the rule and the rollout with Flaglane unreachable. CI run
 
 ## Limitations
 
-- **The SDK is linked from this repository**, not installed from npm, until 0.1.0 is published.
+- **The SDK is linked from this repository**, not installed from npm, so the shop and CI's check on it
+  always run the SDK being built beside the server. An application of your own installs
+  `@flaglane/sdk` from npm.
 - **`npm run seed` registers an account wherever `FLAGLANE_URL` points.** Its generated password is
   saved in the gitignored `.env`. Against a shared instance, that is a real account.
 - **This is a demonstration, not a reference storefront.** There is no cart, no payment and no

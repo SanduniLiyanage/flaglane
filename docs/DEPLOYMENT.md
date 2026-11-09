@@ -25,24 +25,24 @@ From v0.1.0, every release is published as **`ghcr.io/sanduniliyanage/flaglane`*
 
 | Tag | Points to |
 | --- | --- |
-| `0.1.0` | That release, and never anything else |
-| `0.1` | The latest patch release of 0.1 |
+| `0.2.0` | That release, and never anything else |
+| `0.2` | The latest patch release of 0.2 |
 | `latest` | The latest release |
 
-Deploy a full version such as `0.1.0`. Migrations run when the container starts and only go
+Deploy a full version such as `0.2.0`. Migrations run when the container starts and only go
 forward (section 5), so a tag that moves would upgrade you, irreversibly, the next time the host
 restarted the container. Each image carries a provenance attestation, which records the commit and
 workflow that built it, and an SBOM listing what it contains:
 
 ```bash
-docker buildx imagetools inspect ghcr.io/sanduniliyanage/flaglane:0.1.0 --format '{{ json .Provenance }}'
-docker buildx imagetools inspect ghcr.io/sanduniliyanage/flaglane:0.1.0 --format '{{ json .SBOM }}'
+docker buildx imagetools inspect ghcr.io/sanduniliyanage/flaglane:0.2.0 --format '{{ json .Provenance }}'
+docker buildx imagetools inspect ghcr.io/sanduniliyanage/flaglane:0.2.0 --format '{{ json .SBOM }}'
 ```
 
 To build the same image from a clone instead:
 
 ```bash
-docker build --file backend/Dockerfile --tag flaglane:0.1.0 .
+docker build --file backend/Dockerfile --tag flaglane:0.2.0 .
 ```
 
 ## 1. The database
@@ -127,7 +127,7 @@ docker run --detach --name flaglane --restart unless-stopped \
   --env-file flaglane.env \
   --publish 127.0.0.1:8080:8080 \
   --memory 1g \
-  ghcr.io/sanduniliyanage/flaglane:0.1.0
+  ghcr.io/sanduniliyanage/flaglane:0.2.0
 ```
 
 `flaglane.env` holds the variables, one `NAME=value` per line; make it readable by you alone.
