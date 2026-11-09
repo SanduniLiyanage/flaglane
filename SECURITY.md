@@ -2,8 +2,13 @@
 
 ## Supported versions
 
-Flaglane is pre-release. No version has been published yet, so only the `main` branch receives
-fixes. This section will list supported release lines once v0.1.0 ships.
+| Version | Security fixes |
+| --- | --- |
+| 0.1.x | Yes, as patch releases of the image and the SDK |
+| Earlier | None were released |
+
+Fixes land on `main` first and ship in the next patch release. Run the latest patch release of the
+latest line.
 
 ## Reporting a vulnerability
 

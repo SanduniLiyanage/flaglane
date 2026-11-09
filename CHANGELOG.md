@@ -7,7 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Nothing is released yet. The first release will be v0.1.0, and this section is what it contains.
+## [0.1.0] - 2026-11-09
+
+The first release.
+
+- Image: `ghcr.io/sanduniliyanage/flaglane:0.1.0`, for `linux/amd64` and `linux/arm64`
+- SDK: `npm install @flaglane/sdk@0.1.0`
 
 ### Added
 
@@ -61,7 +66,8 @@ Nothing is released yet. The first release will be v0.1.0, and this section is w
 
 #### SDK
 
-- `@flaglane/sdk` for TypeScript, with no runtime dependencies, for browsers and Node 20 or later.
+- `@flaglane/sdk` on npm, for TypeScript, with no runtime dependencies, for browsers and Node 20 or
+  later.
   It evaluates in process and polls for changes every five seconds with the ruleset's ETag.
 - `init` never rejects and `isOn` never throws. While Flaglane is unreachable the SDK keeps its last
   ruleset and backs off with jitter, honouring `Retry-After`; started without one, it returns the
@@ -71,6 +77,8 @@ Nothing is released yet. The first release will be v0.1.0, and this section is w
 
 #### Running it
 
+- A container image of the API and the dashboard, published to GitHub's container registry for
+  x86-64 and Arm by each release tag, with a provenance attestation and an SBOM.
 - A Docker Compose stack: PostgreSQL 16 with separate migration and application roles, and the API,
   whose healthcheck probes readiness.
 - `docs/DEPLOYMENT.md`: two database roles on a managed PostgreSQL, TLS to the database, the
@@ -93,5 +101,7 @@ Each is a decision recorded in `docs/DECISIONS.md`, not an oversight.
 - **No server-side sign-out.** A dashboard token stays valid until it expires (ADR-012).
 - **Boolean flags only**, and no regular-expression operator (E-009).
 - **User overrides do not apply to client keys** (FR-KEY-008).
-- **Not yet published.** The SDK is not on npm and there is no published image; both are built
-  from this repository.
+- **No hosted instance.** The project runs none; you run your own from the image (ADR-038).
+
+[Unreleased]: https://github.com/SanduniLiyanage/flaglane/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/SanduniLiyanage/flaglane/releases/tag/v0.1.0
