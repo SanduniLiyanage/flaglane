@@ -7,6 +7,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `GET /sdk/stream`: Server-Sent Events that tell an SDK, within moments of a change, which version
+  of its environment's ruleset to download. The first event is the version served when the stream
+  opened; a comment every 25 seconds keeps it open through idle proxies; streams last 30 minutes,
+  end when their key is revoked, and are limited to 500 a key and 1,000 an environment
+  (`FLAGLANE_STREAM_MAX_PER_KEY`, `FLAGLANE_STREAM_MAX_PER_ENVIRONMENT`). The SDK does not use it
+  yet; it polls as in 0.1.0.
+
 ## [0.1.0] - 2026-11-09
 
 The first release.

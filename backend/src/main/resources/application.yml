@@ -59,6 +59,16 @@ flaglane:
     # seconds on one key. Answered with 429 and Retry-After beyond it.
     sdk-rate-limit:
       per-minute: ${FLAGLANE_SDK_RATE_LIMIT_PER_MINUTE:600}
+  # GET /sdk/stream (FR-STR-002, FR-STR-004, ADR-039). Beyond either ceiling a stream is refused with
+  # 429 and its SDK keeps polling, so a full ceiling costs freshness, never correctness.
+  streaming:
+    max-per-key: ${FLAGLANE_STREAM_MAX_PER_KEY:500}
+    max-per-environment: ${FLAGLANE_STREAM_MAX_PER_ENVIRONMENT:1000}
+    # A comment on every stream, under the 30 seconds idle proxies commonly allow.
+    heartbeat: PT25S
+    # The server ends a stream after this and its SDK reconnects, so no connection lives forever and
+    # a fleet spreads itself again across whatever sits in front of the API.
+    max-duration: PT30M
 
 springdoc:
   # Every answer the API sends is JSON; without this, every response is documented as */*.

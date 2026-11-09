@@ -131,6 +131,17 @@ property that makes the rollout slider safe to move. **This test fails if `bucke
 `bucket <=` against a re-derived bucket, or if the salt is changed on write.** Implemented in
 `RolloutMonotonicityTest`.
 
+### 12. Streams — FR-STR-001 to FR-STR-004
+Open real connections to `GET /sdk/stream` and read them as the server writes. Assert a stream's
+first event is the version `GET /sdk/config` serves; that a change made through the management API
+reaches the streams of its environment, client keys' included, and not another environment's; that
+an event names the environment and version and nothing about any flag; that a quiet stream gets a
+heartbeat; that revoking a key ends its streams and refuses new ones; that the ceilings per key and
+per environment answer 429, and a closed stream gives its place back; and that a stream the server
+ends at its lifetime ends without an error in the log, which is how the dispatch ending a stream
+was found refused as anonymous (ADR-039). Implemented in `StreamEndToEndTest`, with heartbeats
+every second and streams lasting six; the registry's bookkeeping is `StreamRegistryTest`'s.
+
 ## Performance checks
 
 Not pass/fail gates, but recorded and committed, because a claim without a measurement is

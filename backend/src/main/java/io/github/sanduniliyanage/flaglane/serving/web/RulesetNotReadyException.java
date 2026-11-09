@@ -9,13 +9,13 @@ import org.springframework.web.ErrorResponseException;
 /**
  * The key's environment has no ruleset in the cache: the application is still loading, or the
  * environment was deleted a moment ago. A 503 with {@code Retry-After}, which an SDK treats as
- * transient and answers from its last ruleset meanwhile (docs/API.md).
+ * transient and answers from its last ruleset meanwhile (docs/API.md). The stream answers it too.
  */
-class RulesetNotReadyException extends ErrorResponseException {
+public class RulesetNotReadyException extends ErrorResponseException {
 
   private static final long serialVersionUID = 1L;
 
-  RulesetNotReadyException(String retryAfterSeconds) {
+  public RulesetNotReadyException(String retryAfterSeconds) {
     super(HttpStatus.SERVICE_UNAVAILABLE, problem(), null);
     getHeaders().set(HttpHeaders.RETRY_AFTER, retryAfterSeconds);
   }

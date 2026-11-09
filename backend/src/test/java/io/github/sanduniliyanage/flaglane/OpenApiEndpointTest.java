@@ -8,6 +8,7 @@ import io.github.sanduniliyanage.flaglane.common.validation.ResourceKey;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -67,6 +68,13 @@ class OpenApiEndpointTest {
     assertThat(document).doesNotContain("OwnerScope", "ProjectScope", "EnvironmentScope");
   }
 
+  /**
+   * Operations whose success is not JSON, each by design. The stream is a sequence of events, not a
+   * document (FR-SRV-003).
+   */
+  private static final Map<String, String> NOT_JSON =
+      Map.of("GET /sdk/stream", "text/event-stream");
+
   @Test
   void everyOperationDocumentsItsOneSuccessResponseAsJson() throws Exception {
     JsonNode paths =
@@ -83,7 +91,8 @@ class OpenApiEndpointTest {
           continue;
         }
         JsonNode content = responses.path(success.getFirst()).path("content");
-        if (!content.isMissingNode() && !names(content).equals(List.of("application/json"))) {
+        String expected = NOT_JSON.getOrDefault(name, "application/json");
+        if (!content.isMissingNode() && !names(content).equals(List.of(expected))) {
           undocumented.add(name + " answers " + names(content));
         }
       }

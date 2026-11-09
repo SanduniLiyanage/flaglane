@@ -6,6 +6,7 @@ import io.github.sanduniliyanage.flaglane.common.security.TokenBuckets.Decision;
 import io.github.sanduniliyanage.flaglane.serving.service.RulesetCache;
 import io.github.sanduniliyanage.flaglane.serving.service.SdkRateLimit;
 import io.github.sanduniliyanage.flaglane.serving.service.SdkRateLimit.Cost;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpHeaders;
@@ -36,6 +37,10 @@ final class SdkRateLimitInterceptor implements HandlerInterceptor {
   @Override
   public boolean preHandle(
       HttpServletRequest request, HttpServletResponse response, Object handler) {
+    // A stream ends with a second dispatch of the request it began as, which was charged then.
+    if (request.getDispatcherType() == DispatcherType.ASYNC) {
+      return true;
+    }
     Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
     if (authentication == null || !(authentication.getPrincipal() instanceof SdkCredential key)) {
       return true;

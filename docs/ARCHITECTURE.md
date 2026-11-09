@@ -168,18 +168,26 @@ new ruleset, which it swaps in whole (FR-SDK-003). A change is in effect everywh
 seconds. While the server is unreachable the SDK backs off with jitter up to 30 seconds and keeps
 answering from the last ruleset (FR-SDK-004), so an outage degrades to staleness, never to errors.
 
-**This is a cut, and it is stated as one.** The design is Server-Sent Events (ADR-004): one
-long-lived connection per SDK carrying a version-only change event, which would make propagation
+**In v0.1 this was a cut, stated as one.** The design is Server-Sent Events (ADR-004): one
+long-lived connection per SDK carrying a version-only change event, which makes propagation
 sub-second. It was the roadmap's first cut and was invoked for v0.1 (ADR-027), keeping the SDK, its
 parity suite and the demo application, which are on the never-cut list. Five seconds rather than
-the thirty ADR-004 rejects is the accepted degradation for a kill switch. When streaming is built it
-uses `SseEmitter`, so connections do not each occupy a servlet thread, with a stated ceiling per key
-and per environment (FR-STR-004), and polling stays as its fallback.
+the thirty ADR-004 rejects was the accepted degradation for a kill switch.
+
+**From v0.2 the server streams** (`streaming/`, ADR-039). When the cache moves an environment to a
+newer version it announces it, after the swap, and the stream registry sends `ruleset-changed`
+with that version to the environment's open streams, on a thread of its own so the request that
+made the change never waits on a subscriber. A stream's first event is the version served when it
+opened, a comment every 25 seconds keeps it alive through idle proxies, and it lasts 30 minutes
+before the SDK reconnects. Streams use `SseEmitter`, so none occupies a servlet thread, under a
+ceiling per key and per environment (FR-STR-004); a revoked key's streams end before the revoke
+returns, and at shutdown every stream ends before the web server's graceful shutdown begins. The
+SDK's subscription is slice 5.2; until it lands, SDKs poll as in v0.1, and polling stays the
+fallback after it does.
 
 ### One instance, and why that is written down
 
-**The ruleset cache, the key cache and the rate limits are in process** — as the stream registry
-will be. Run two instances behind a load balancer and a write on instance A is not seen by
+**The ruleset cache, the key cache, the rate limits and the stream registry are in process.** Run two instances behind a load balancer and a write on instance A is not seen by
 instance B until B's once-a-minute reconciliation compares versions with the database; until then
 every SDK polling B keeps getting the old ruleset. For up to a minute, half the traffic would get a
 kill switch that has not killed, silently, in a system that otherwise looks healthy. Keys are

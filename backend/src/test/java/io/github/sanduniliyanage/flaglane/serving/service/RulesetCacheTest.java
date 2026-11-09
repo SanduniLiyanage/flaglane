@@ -2,24 +2,30 @@ package io.github.sanduniliyanage.flaglane.serving.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import io.github.sanduniliyanage.flaglane.evaluation.Ruleset;
 import io.github.sanduniliyanage.flaglane.project.domain.RulesetChanged;
 import io.github.sanduniliyanage.flaglane.serving.domain.RulesetSnapshot;
+import io.github.sanduniliyanage.flaglane.serving.domain.RulesetSwapped;
 import io.github.sanduniliyanage.flaglane.serving.domain.ServedBody;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataAccessResourceFailureException;
 
 class RulesetCacheTest {
 
   private final RulesetLoader loader = mock(RulesetLoader.class);
-  private final RulesetCache cache = new RulesetCache(loader);
+  private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
+  private final RulesetCache cache = new RulesetCache(loader, events);
   private final UUID production = UUID.randomUUID();
 
   @Test
@@ -105,6 +111,44 @@ class RulesetCacheTest {
 
     assertThat(cache.get(production)).isPresent();
     verify(loader).versions();
+  }
+
+  @Test
+  void eachNewerVersionIsAnnouncedOnceItIsInPlace() {
+    when(loader.load(production))
+        .thenReturn(Optional.of(snapshot(production, 1)), Optional.of(snapshot(production, 2)));
+
+    cache.rebuild(production);
+    cache.rebuild(production);
+
+    verify(events).publishEvent(new RulesetSwapped(production, "production", 1));
+    verify(events).publishEvent(new RulesetSwapped(production, "production", 2));
+  }
+
+  @Test
+  void aRebuildThatChangesNothingAnnouncesNothing() {
+    when(loader.load(production))
+        .thenReturn(
+            Optional.of(snapshot(production, 5)),
+            Optional.of(snapshot(production, 5)),
+            Optional.of(snapshot(production, 4)));
+    cache.rebuild(production);
+
+    cache.rebuild(production);
+    cache.rebuild(production);
+
+    verify(events).publishEvent(new RulesetSwapped(production, "production", 5));
+    verify(events, never()).publishEvent(new RulesetSwapped(production, "production", 4));
+  }
+
+  @Test
+  void aDeletedEnvironmentAnnouncesNothing() {
+    when(loader.load(production)).thenReturn(Optional.empty());
+
+    cache.rebuild(production);
+
+    verifyNoInteractions(events);
+    verify(loader).load(ArgumentMatchers.eq(production));
   }
 
   private static RulesetSnapshot snapshot(UUID environment, long version) {

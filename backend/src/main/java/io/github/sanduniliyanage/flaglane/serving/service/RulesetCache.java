@@ -2,6 +2,7 @@ package io.github.sanduniliyanage.flaglane.serving.service;
 
 import io.github.sanduniliyanage.flaglane.project.domain.RulesetChanged;
 import io.github.sanduniliyanage.flaglane.serving.domain.RulesetSnapshot;
+import io.github.sanduniliyanage.flaglane.serving.domain.RulesetSwapped;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
@@ -11,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.SmartInitializingSingleton;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -36,11 +38,13 @@ public class RulesetCache implements SmartInitializingSingleton {
   private static final Logger LOG = LoggerFactory.getLogger(RulesetCache.class);
 
   private final RulesetLoader loader;
+  private final ApplicationEventPublisher events;
   private final ConcurrentHashMap<UUID, RulesetSnapshot> snapshots = new ConcurrentHashMap<>();
   private volatile boolean ready;
 
-  public RulesetCache(RulesetLoader loader) {
+  public RulesetCache(RulesetLoader loader, ApplicationEventPublisher events) {
     this.loader = loader;
+    this.events = events;
   }
 
   @Override
@@ -63,17 +67,31 @@ public class RulesetCache implements SmartInitializingSingleton {
     return snapshots.size();
   }
 
-  /** Reloads one environment, or forgets it if it no longer exists. */
+  /**
+   * Reloads one environment, or forgets it if it no longer exists. When the environment moves to a
+   * newer version, {@link RulesetSwapped} is published once the new snapshot is in place.
+   */
   public void rebuild(UUID environmentId) {
     Optional<RulesetSnapshot> loaded = loader.load(environmentId);
     if (loaded.isEmpty()) {
       snapshots.remove(environmentId);
       return;
     }
-    snapshots.merge(
+    RulesetSnapshot fresh = loaded.get();
+    boolean[] advanced = {false};
+    snapshots.compute(
         environmentId,
-        loaded.get(),
-        (current, fresh) -> fresh.version() >= current.version() ? fresh : current);
+        (id, current) -> {
+          if (current == null || fresh.version() > current.version()) {
+            advanced[0] = true;
+            return fresh;
+          }
+          return fresh.version() == current.version() ? fresh : current;
+        });
+    if (advanced[0]) {
+      events.publishEvent(
+          new RulesetSwapped(environmentId, fresh.environmentKey(), fresh.version()));
+    }
   }
 
   /** Runs after the changing transaction commits, before its request returns. */

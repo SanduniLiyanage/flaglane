@@ -1195,6 +1195,59 @@
         } ]
       }
     },
+    "/sdk/stream" : {
+      "get" : {
+        "tags" : [ "Serving" ],
+        "summary" : "Subscribe to ruleset changes",
+        "description" : "Server-Sent Events. The first event, and one each time the environment's ruleset changes, is `ruleset-changed`, with the event id and the data's `version` the version now served: download it with `GET /sdk/config` and the ETag held. The event never carries the ruleset. A comment arrives at least every 30 seconds. The server ends a stream after 30 minutes by default, and on shutdown; reconnect, and keep polling while there is no stream. A stream is charged against the key's allowance once, when it opens.",
+        "operationId" : "stream",
+        "responses" : {
+          "200" : {
+            "description" : "The stream",
+            "content" : {
+              "text/event-stream" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Missing, malformed or revoked key",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "429" : {
+            "description" : "The key's allowance is used up, or the key or its environment holds as many streams as it may; retry after the time given, and poll meanwhile",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "503" : {
+            "description" : "The ruleset is not loaded yet, or the server is shutting down; retry after the time given",
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "sdk-key" : [ ]
+        } ]
+      }
+    },
     "/sdk/config" : {
       "get" : {
         "tags" : [ "Serving" ],

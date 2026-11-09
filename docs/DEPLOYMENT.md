@@ -108,6 +108,8 @@ Configuration comes from environment variables only. Nothing has a default that 
 | `FLAGLANE_DB_APP_USER` | No | `flaglane_app` by default |
 | `FLAGLANE_AUTH_RATE_LIMIT_PER_MINUTE` | No | Registration and sign-in requests a minute per client address; 10 by default (ADR-029) |
 | `FLAGLANE_SDK_RATE_LIMIT_PER_MINUTE` | No | Serving API requests a minute per API key, a `304` counting as a tenth; 600 by default, which serves 500 SDK processes polling one key (ADR-035) |
+| `FLAGLANE_STREAM_MAX_PER_KEY` | No | From v0.2: open change streams one key may hold; 500 by default. Beyond it an SDK polls instead (FR-STR-004) |
+| `FLAGLANE_STREAM_MAX_PER_ENVIRONMENT` | No | From v0.2: open change streams one environment may hold; 1,000 by default |
 
 A missing required variable stops the application at startup with the variable named. The JVM sizes
 its heap from the container's memory limit, so set one.
@@ -147,6 +149,14 @@ connects from. Two things follow:
   example `203\.0\.113\.\d{1,3}`. This replaces the private ranges rather than adding to them.
 
 Leave it at `none` when nothing sits in front of the container, as on the Compose stack.
+
+**From v0.2, streams pass through the proxy too.** `GET /sdk/stream` is a response that stays open
+and is written a little at a time (ADR-039). The proxy must pass each piece on as it arrives rather
+than collect the response first: the API sends `X-Accel-Buffering: no`, which nginx obeys; another
+proxy may need buffering turned off for `/sdk/stream`. It must also leave a connection open while
+nothing but a comment every 25 seconds crosses it, so its idle timeout must be longer than that.
+A proxy that ends long requests anyway does no harm: the SDK reconnects, and polls while it has no
+stream.
 
 ## 4. Health checks
 

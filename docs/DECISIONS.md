@@ -945,3 +945,49 @@ monthly cost; Docker Hub — a second account and a token to store, where the re
 repository uses the token every workflow already has; building `arm64` under emulation — the
 Gradle build under QEMU takes many times longer, and GitHub provides Arm runners for public
 repositories.
+
+---
+
+## ADR-039 — The stream: a version after the swap, one writer, a lifetime, and the key kept
+
+ADR-027 cut the stream from v0.1 and said it returns as ADR-004 designs it once v0.1 shipped;
+FR-SRV-003 and FR-STR-001 to FR-STR-004 specify it, and v0.2 builds it, the server first (slice
+5.1). Five things were left to decide. **Decision:** *When an event is sent.* After the ruleset
+cache has swapped the environment's new snapshot in, never at commit: the cache announces each
+version it moves forward to, from a change on this instance or from its minute's reconciliation, so
+an SDK that downloads the ruleset on hearing the event is certain to get that version or a later
+one. *What it says.* `event: ruleset-changed`, the version as the event's `id`, and `{"environment",
+"version"}` as data; never the ruleset, which the SDK downloads with its ETag exactly as when it
+polls, so one code path builds a ruleset. A stream's first event is the version served when it
+opened, so an SDK that reconnects learns at once whether it missed a change while away. *Who
+writes.* One thread of the stream registry's own sends every event and heartbeat, in the order they
+were raised: the request that made a change never waits on a subscriber, and no stream sees an older
+version after a newer one. *How long a stream lives.* The heartbeat is a comment every 25 seconds,
+under FR-STR-002's 30. A stream ends after 30 minutes and its SDK reconnects, so no connection lives
+forever and a fleet spreads itself again across whatever sits in front of the API. Beyond
+FR-STR-004's ceilings, 500 streams a key and 1,000 an environment, both configurable, the answer is
+429 with `Retry-After: 60`, and the SDK polls meanwhile, so a full ceiling costs freshness and never
+correctness. At shutdown the registry ends every stream before the web server begins its graceful
+shutdown, which would otherwise wait out its whole timeout on connections that never finish by
+themselves. Responses carry `X-Accel-Buffering: no`, which nginx and proxies that copy it read as
+"do not hold events back". *How the end of a stream is authorized.* A stream ends with a second,
+asynchronous dispatch of its request, which Spring Security authorizes again; the API key filter
+had set the key's identity on the thread only, so that dispatch arrived anonymous and was refused
+on a response already sent, logging an error for every stream that ended. The test written for
+streams that reach their lifetime found it. The filter now keeps the identity on the request
+(`RequestAttributeSecurityContextRepository`), and the closing dispatch is authorized as the key
+that opened the stream; it is not charged against the key's allowance again, which NFR-SEC-005
+already said. **Consequences:** a change reaches an open stream within moments of its commit;
+whether it reaches an application under a second is the SDK's half, slice 5.2. An idle stream costs
+a comment every 25 seconds; a busy environment costs one event per change per stream, written by
+one thread, which at 1,000 streams is 1,000 small writes. Streams are per instance, like everything
+the cache holds (ADR-036). **Rejected:** sending the ruleset in the event — two ways to build a
+ruleset in the SDK, and every change would push the whole ruleset down every stream, wanted or not;
+an event at commit — an SDK fast enough to ask before the swap would get the old version and be
+told nothing more; a thread per stream, or writing on the changing request's thread — the first
+spends a thread on each idle connection, the second makes a dashboard save wait on the slowest
+subscriber; no lifetime — connections pinned forever to whichever instance or proxy they first
+reached; permitting every asynchronous dispatch on `/sdk/**` — it would have silenced the error by
+authorizing nothing, where keeping the identity authorizes the same key twice; WebFlux — a second
+web stack in one application for one endpoint, when `SseEmitter` releases the request thread as
+FR-STR-004 requires.

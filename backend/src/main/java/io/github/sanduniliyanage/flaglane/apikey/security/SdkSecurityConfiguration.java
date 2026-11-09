@@ -12,6 +12,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.header.HeaderWriterFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -27,6 +29,9 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  *
  * <p>Any origin may call it from a browser, which is what client keys are for (ADR-025). Only this
  * chain allows cross-origin requests; the dashboard API allows none.
+ *
+ * <p>The key's identity is kept on the request, so the dispatch that ends a stream is authorized as
+ * the key that opened it rather than refused as anonymous on a response already sent (ADR-039).
  */
 @Configuration(proxyBeanMethods = false)
 public class SdkSecurityConfiguration {
@@ -35,12 +40,15 @@ public class SdkSecurityConfiguration {
   @Order(2)
   SecurityFilterChain servingApi(HttpSecurity http, ApiKeyCache keys, LastUsedRecorder lastUsed)
       throws Exception {
+    SecurityContextRepository contexts = new RequestAttributeSecurityContextRepository();
     SecurityConfiguration.stateless(http)
         .securityMatcher("/sdk/**")
+        .securityContext(context -> context.securityContextRepository(contexts))
         .cors(cors -> cors.configurationSource(anyOrigin()))
         .headers(headers -> headers.cacheControl(cacheControl -> cacheControl.disable()))
         .addFilterBefore(new PrivateResponseFilter(), HeaderWriterFilter.class)
-        .addFilterBefore(new ApiKeyAuthenticationFilter(keys, lastUsed), AuthorizationFilter.class)
+        .addFilterBefore(
+            new ApiKeyAuthenticationFilter(keys, lastUsed, contexts), AuthorizationFilter.class)
         .authorizeHttpRequests(requests -> requests.anyRequest().authenticated());
     return http.build();
   }

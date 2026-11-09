@@ -236,10 +236,10 @@ of any other answer (see [Rate limit](#rate-limit)).
 | --- | --- | --- |
 | GET | `/sdk/config` | Full ruleset for the key's environment, with ETag (FR-SRV-001) |
 | POST | `/sdk/evaluate` | Server-side evaluation for thin clients (FR-SRV-002) |
-| GET | `/sdk/stream` | SSE change notifications (FR-SRV-003). **Not in v0.1**: cut for five-second polling (ADR-027) |
+| GET | `/sdk/stream` | SSE change notifications (FR-SRV-003). **From v0.2**; v0.1 SDKs poll (ADR-027, ADR-039) |
 
-Both built endpoints answer from memory and never query the database, so they keep working while
-it is down (NFR-PER-004).
+All three answer from memory and never query the database, so they keep working while it is down
+(NFR-PER-004).
 
 `GET /sdk/config` with a `client` key returns only client-side-visible flags (FR-KEY-005), and
 carries **no `overrides` array on any flag** (FR-KEY-008). This is a security boundary, not a
@@ -345,21 +345,50 @@ flags per request.
 client must not get an HTTP error where a thick client gets its fallback. A flag that exists but
 is not readable by this key reports `FLAG_NOT_FOUND` too, so the response does not disclose it.
 
-### Polling, and the stream that is not in v0.1
+### The stream, and polling
 
-In v0.1 an SDK learns of a change by polling: every five seconds it sends `GET /sdk/config` with the
-ETag it holds as `If-None-Match`, and gets an empty 304 until the ruleset changes. Streaming was the
-roadmap's first cut (ADR-027). When it is built, it is as follows, and polling stays as its fallback:
+An SDK learns of a change in one of two ways. It polls: every five seconds it sends
+`GET /sdk/config` with the ETag it holds as `If-None-Match`, and gets an empty 304 until the ruleset
+changes. That is all a v0.1 SDK does. From v0.2 the server also streams, and an SDK that holds a
+stream downloads the ruleset as soon as it is told of a change, keeping polling as its fallback
+(ADR-004, ADR-039):
 
 ```
+GET /sdk/stream
+Authorization: Bearer flg_srv_…
+Accept: text/event-stream
+
+200
+Content-Type: text/event-stream
+Cache-Control: private, no-store
+X-Accel-Buffering: no
+
 event: ruleset-changed
+id: 412
+data: {"environment":"production","version":412}
+
+:heartbeat
+
+event: ruleset-changed
+id: 413
 data: {"environment":"production","version":413}
 ```
 
-The event carries a version, not the ruleset. The SDK refetches, so one code path builds a
-ruleset instead of two, and a missed event self-corrects on the next poll.
-
-A heartbeat comment goes out every 30 seconds (FR-STR-002); idle proxies close silent connections.
+- The first event is the version served when the stream opened, so an SDK that reconnects learns at
+  once whether it missed a change while it was away.
+- After that, one event each time the environment's ruleset moves to a newer version, sent once the
+  server has it, and only to streams of that environment (FR-STR-001). The event carries a version,
+  never the ruleset: the SDK downloads it with its ETag, so one code path builds a ruleset, and a
+  missed event costs nothing that the next poll does not recover.
+- A comment every 25 seconds keeps idle proxies from closing the connection (FR-STR-002).
+- A client key gets the same events: a version says nothing about which flags it may read.
+- The server ends a stream after 30 minutes, when its key is revoked (FR-STR-003), and when it
+  shuts down. Reconnect, and poll while there is no stream.
+- A key holds at most 500 open streams and an environment 1,000, set by
+  `FLAGLANE_STREAM_MAX_PER_KEY` and `FLAGLANE_STREAM_MAX_PER_ENVIRONMENT`. One more is refused with
+  429 and `Retry-After: 60`, and its SDK polls meanwhile (FR-STR-004).
+- Opening a stream costs one request of the key's allowance, once; its events cost nothing
+  (NFR-SEC-005).
 
 ### Rate limit
 
@@ -393,8 +422,8 @@ be diagnosable:
 | --- | --- |
 | 401 | Missing, malformed, or revoked key. One answer for all three |
 | 400 | Malformed request body on `POST /sdk/evaluate`, or a flag without a `fallback` |
-| 429 | The key's allowance is used up for now, with `Retry-After` in seconds (NFR-SEC-005) |
-| 503 | Ruleset not loaded for the key's environment yet, with `Retry-After: 5`; SDK retries with backoff |
+| 429 | The key's allowance is used up for now, or on `/sdk/stream` the key or its environment holds as many streams as it may; `Retry-After` in seconds (NFR-SEC-005, FR-STR-004) |
+| 503 | Ruleset not loaded for the key's environment yet, or, on `/sdk/stream`, the server is shutting down; `Retry-After: 5`, and the SDK retries with backoff |
 
 There is deliberately no 404 for an unknown flag. 404 on `/sdk/**` means a path that does not
 exist, nothing more.

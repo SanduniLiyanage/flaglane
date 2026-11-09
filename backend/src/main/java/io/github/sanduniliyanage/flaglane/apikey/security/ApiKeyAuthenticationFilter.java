@@ -14,12 +14,17 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * Authenticates {@code /sdk/**} by {@code Authorization: Bearer <api key>}, from the in-memory key
  * cache alone: no request performs a database query (FR-KEY-007, NFR-PER-004). A missing,
  * malformed, unknown or revoked key is a 401 that does not say which (docs/API.md).
+ *
+ * <p>The identity is kept on the request as well as on the thread. A stream ends with a second,
+ * asynchronous dispatch of its request, which this filter does not see again, and which is
+ * authorized from what was kept (ADR-039).
  *
  * <p>Not a bean: Spring Boot registers every {@code Filter} bean for every path, and this one
  * belongs to the {@code /sdk/**} chain only.
@@ -34,10 +39,13 @@ final class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
   private final ApiKeyCache keys;
   private final LastUsedRecorder lastUsed;
+  private final SecurityContextRepository contexts;
 
-  ApiKeyAuthenticationFilter(ApiKeyCache keys, LastUsedRecorder lastUsed) {
+  ApiKeyAuthenticationFilter(
+      ApiKeyCache keys, LastUsedRecorder lastUsed, SecurityContextRepository contexts) {
     this.keys = keys;
     this.lastUsed = lastUsed;
+    this.contexts = contexts;
   }
 
   @Override
@@ -52,6 +60,7 @@ final class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
     SecurityContext context = SecurityContextHolder.createEmptyContext();
     context.setAuthentication(new SdkAuthentication(credential.get()));
     SecurityContextHolder.setContext(context);
+    contexts.saveContext(context, request, response);
     lastUsed.record(credential.get().keyId());
     chain.doFilter(request, response);
   }

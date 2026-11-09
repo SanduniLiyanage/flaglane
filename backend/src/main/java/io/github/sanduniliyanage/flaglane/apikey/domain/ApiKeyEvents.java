@@ -12,6 +12,6 @@ public final class ApiKeyEvents {
   /** A key that now authenticates. */
   public record Issued(String keyHash, SdkCredential credential) {}
 
-  /** A key that no longer does. Open streams for it are closed too, once streaming exists. */
+  /** A key that no longer does. Its open streams are closed too (FR-STR-003). */
   public record Revoked(String keyHash, SdkCredential credential) {}
 }
