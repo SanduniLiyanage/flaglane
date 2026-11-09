@@ -31,6 +31,21 @@ const server = createServer((request, response) => {
   }
 });
 
+// The usual cause is a shop started earlier and still running: say so, rather than end on a stack
+// trace that names neither the port nor what to do about it.
+server.on("error", (error: NodeJS.ErrnoException) => {
+  if (error.code === "EADDRINUSE") {
+    console.error(
+      `Port ${port} is already in use, most likely by a shop started earlier. Stop that one with ` +
+        `Ctrl+C in its window, or start this one on another port by setting PORT, such as PORT=3001.`,
+    );
+  } else {
+    console.error(`The shop could not start: ${error.message}`);
+  }
+  flags.close();
+  process.exitCode = 1;
+});
+
 server.listen(port, () => {
   console.log(`Hilltop Tea is open on http://localhost:${port}`);
   console.log(
