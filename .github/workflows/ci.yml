@@ -17,6 +17,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # By hand, for a run GitHub lost or will not retry.
+  workflow_dispatch:
 
 permissions:
   contents: read
