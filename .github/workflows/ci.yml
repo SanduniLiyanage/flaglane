@@ -157,7 +157,8 @@ jobs:
           FLAGLANE_STREAMING=false nohup npm start > shop-polling.log 2>&1 &
           npm run verify -- polling
           pkill -f "src/server.ts"
-          timeout 15 bash -c 'while pgrep -f "src/server.ts" > /dev/null; do sleep 0.2; done'
+          # Until nothing answers on the shop's port, so the next shop can have it.
+          timeout 15 bash -c 'while curl --silent --output /dev/null http://localhost:3000/state.json; do sleep 0.2; done'
 
       - name: Start the shop as shipped, and time a change reaching it over its stream
         working-directory: examples/demo-shop
